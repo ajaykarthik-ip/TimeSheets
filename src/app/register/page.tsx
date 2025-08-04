@@ -90,6 +90,7 @@ export default function RegisterPage() {
         }
       }
     } catch (err) {
+    console.error('Login error:', err);
       setError('Network error. Please check if the backend server is running.');
     } finally {
       setLoading(false);

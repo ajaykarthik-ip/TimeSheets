@@ -51,6 +51,7 @@ export default function LoginPage() {
         setError(data.detail || data.email?.[0] || data.password?.[0] || 'Login failed');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Network error. Please check if the backend server is running.');
     } finally {
       setLoading(false);
