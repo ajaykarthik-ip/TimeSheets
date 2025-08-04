@@ -1,9 +1,10 @@
 import './globals.css'
 import { ReactNode } from 'react'
+import { AuthProvider } from './context/AuthContext'
 
 export const metadata = {
-  title: 'My Frontend App',
-  description: 'A simple Next.js application',
+  title: 'Timesheet Management System',
+  description: 'A secure timesheet application',
 }
 
 interface RootLayoutProps {
@@ -13,7 +14,11 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   )
 }
