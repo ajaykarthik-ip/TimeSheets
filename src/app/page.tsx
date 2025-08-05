@@ -317,7 +317,7 @@ export default function SimplifiedTimesheet() {
     setOvertimeHours(Math.max(total - 40, 0));
   };
 
-  const updateRow = (id: string, field: keyof TimesheetRow, value: any) => {
+  const updateRow = async (id: string, field: keyof TimesheetRow, value: any) => {
     const updated = rows.map((row) => {
       if (row.id === id) {
         const updatedRow = { ...row, [field]: value };
@@ -343,9 +343,48 @@ export default function SimplifiedTimesheet() {
       return row;
     });
     setRows(updated);
+
+    // Save project/activity selection to database if we have existing timesheet entries
+    const row = updated.find(r => r.id === id);
+    if (row && currentUser && (field === 'projectName' || field === 'activity')) {
+      // Update all existing timesheet entries for this row with new project/activity
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const timesheetId = row.timesheetIds[dayIndex];
+        if (timesheetId && row.projectId && row.activity) {
+          try {
+            const date = weekDates[dayIndex].toISOString().split('T')[0];
+            const timesheetData = {
+              employee_id: currentUser.employee_id,
+              project: row.projectId,
+              activity_type: row.activity,
+              date: date,
+              hours_worked: row.hours[dayIndex].toString(),
+              description: ''
+            };
+            await api.updateTimesheet(timesheetId, timesheetData);
+          } catch (error) {
+            console.error(`Failed to update timesheet ${timesheetId}:`, error);
+          }
+        }
+      }
+    }
+  };
+
+  // Check if a date is in the future (after today)
+  const isDateEditable = (date: Date) => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Set to end of today
+    return date <= today; // Can edit today and past dates, not future
   };
 
   const updateHour = async (id: string, dayIndex: number, value: number) => {
+    // Check if date is editable (not future)
+    const selectedDate = weekDates[dayIndex];
+    if (!isDateEditable(selectedDate)) {
+      setError('Cannot edit timesheets for future dates.');
+      return;
+    }
+
     // Validate input
     if (value < 0) value = 0;
     if (value > 24) value = 24;
@@ -361,7 +400,27 @@ export default function SimplifiedTimesheet() {
     const timesheetId = row.timesheetIds[dayIndex];
     const date = weekDates[dayIndex].toISOString().split('T')[0];
 
-    // Update local state first
+    // Skip API call if project/activity not selected
+    if (!row.projectId || !row.activity || !currentUser) {
+      // Just update local state for display purposes
+      const updated = rows.map((r) => {
+        if (r.id === id) {
+          const newHours = [...r.hours];
+          newHours[dayIndex] = value;
+          const updatedRow = { ...r, hours: newHours };
+          updatedRow.total = newHours.reduce((sum, h) => sum + h, 0);
+          return updatedRow;
+        }
+        return r;
+      });
+      setRows(updated);
+      return;
+    }
+
+    // Clear any existing errors
+    setError('');
+
+    // Update local state first for immediate feedback
     const updated = rows.map((r) => {
       if (r.id === id) {
         const newHours = [...r.hours];
@@ -373,11 +432,6 @@ export default function SimplifiedTimesheet() {
       return r;
     });
     setRows(updated);
-
-    // Skip API call if project/activity not selected
-    if (!row.projectId || !row.activity || !currentUser) {
-      return;
-    }
 
     try {
       if (value === 0) {
@@ -402,10 +456,12 @@ export default function SimplifiedTimesheet() {
 
         if (timesheetId) {
           // Update existing entry
-          await api.updateTimesheet(timesheetId, timesheetData);
+          const result = await api.updateTimesheet(timesheetId, timesheetData);
+          console.log('Updated timesheet:', result);
         } else {
           // Create new entry
           const result = await api.createTimesheet(timesheetData);
+          console.log('Created timesheet:', result);
           // Update timesheetIds
           const newRow = updated.find(r => r.id === id);
           if (newRow && result.timesheet) {
@@ -415,6 +471,7 @@ export default function SimplifiedTimesheet() {
       }
     } catch (error: any) {
       console.error('Error updating timesheet:', error);
+      
       // Revert local state on error
       const revertedRows = rows.map((r) => {
         if (r.id === id) {
@@ -427,7 +484,30 @@ export default function SimplifiedTimesheet() {
         return r;
       });
       setRows(revertedRows);
-      alert('Failed to update timesheet: ' + error.message);
+      
+      // Show detailed error message
+      let errorMessage = 'Failed to update timesheet.';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      // Common error messages
+      if (errorMessage.includes('date')) {
+        errorMessage = 'Invalid date. Please check the selected date and try again.';
+      } else if (errorMessage.includes('project')) {
+        errorMessage = 'Invalid project selection. Please select a valid project.';
+      } else if (errorMessage.includes('activity')) {
+        errorMessage = 'Invalid activity type. Please select a valid activity.';
+      } else if (errorMessage.includes('hours')) {
+        errorMessage = 'Invalid hours value. Please enter a valid number between 0 and 24.';
+      }
+      
+      setError(errorMessage);
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -588,7 +668,7 @@ export default function SimplifiedTimesheet() {
               fontSize: '12px',
               marginBottom: '5px',
               textTransform: 'uppercase'
-            }}>Department</label>
+            }}>Buisness Unit</label>
             <span style={{ color: '#333', fontSize: '14px' }}>
               {currentUser.department}
             </span>
@@ -641,6 +721,25 @@ export default function SimplifiedTimesheet() {
           <div style={{ marginTop: '20px' }}>
             <button
               onClick={() => window.location.href = '/admin'}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '12px 15px',
+                borderRadius: '5px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                transition: 'transform 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
             >
               🔧 Admin Panel
             </button>
@@ -712,17 +811,23 @@ export default function SimplifiedTimesheet() {
                 <th>Project Name</th>
                 <th>Activity Type</th>
                 <th>Billable</th>
-                {weekDates.map((date, index) => (
-                  <th key={index} className="day-header">
-                    {dayNames[index]}<br/>
-                    <span className="date">
-                      {date.toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
-                    </span>
-                  </th>
-                ))}
+                {weekDates.map((date, index) => {
+                  const isEditable = isDateEditable(date);
+                  const isFutureDate = !isEditable;
+                  
+                  return (
+                    <th key={index} className={`day-header ${isFutureDate ? 'future-date-header' : ''}`}>
+                      {dayNames[index]}<br/>
+                      <span className="date">
+                        {date.toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                        {isFutureDate && <span style={{ fontSize: '10px', display: 'block', color: '#999' }}>Future</span>}
+                      </span>
+                    </th>
+                  );
+                })}
                 <th>Total</th>
                 <th>Action</th>
               </tr>
@@ -764,20 +869,32 @@ export default function SimplifiedTimesheet() {
                       {row.billable ? 'Yes' : 'No'}
                     </span>
                   </td>
-                  {row.hours.map((hour, index) => (
-                    <td key={index}>
-                      <input
-                        type="number"
-                        min="0"
-                        max="24"
-                        step="0.25"
-                        value={hour || ''}
-                        onChange={(e) => updateHour(row.id, index, parseFloat(e.target.value) || 0)}
-                        className="hour-input"
-                        disabled={!row.projectId || !row.activity}
-                      />
-                    </td>
-                  ))}
+                  {row.hours.map((hour, index) => {
+                    const dateForThisColumn = weekDates[index];
+                    const isEditable = isDateEditable(dateForThisColumn);
+                    const isFutureDate = !isEditable;
+                    
+                    return (
+                      <td key={index} className={isFutureDate ? 'future-date-cell' : ''}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.25"
+                          value={hour || ''}
+                          onChange={(e) => updateHour(row.id, index, parseFloat(e.target.value) || 0)}
+                          className="hour-input"
+                          disabled={!row.projectId || !row.activity || isFutureDate}
+                          style={{
+                            backgroundColor: isFutureDate ? '#f5f5f5' : 'white',
+                            color: isFutureDate ? '#999' : '#333',
+                            cursor: isFutureDate ? 'not-allowed' : 'text'
+                          }}
+                          title={isFutureDate ? 'Cannot edit future dates' : ''}
+                        />
+                      </td>
+                    );
+                  })}
                   <td className="total-cell">{row.total.toFixed(1)}</td>
                   <td>
                     <button 
@@ -828,6 +945,21 @@ export default function SimplifiedTimesheet() {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        .future-date-header {
+          background-color: #f0f0f0 !important;
+          color: #666 !important;
+        }
+        
+        .future-date-cell {
+          background-color: #fafafa;
+        }
+        
+        .future-date-cell input {
+          background-color: #f5f5f5 !important;
+          color: #999 !important;
+          cursor: not-allowed !important;
         }
       `}</style>
     </div>
