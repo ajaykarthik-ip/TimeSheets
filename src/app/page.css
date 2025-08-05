@@ -178,3 +178,27 @@
   border-radius: 3px;
   text-align: center;
 }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  align-items: start;
+}
+
+.info-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.info-grid label {
+  font-weight: bold;
+  color: #555;
+  font-size: 14px;
+}
+
+.info-grid span {
+  color: #333;
+  font-size: 16px;
+}

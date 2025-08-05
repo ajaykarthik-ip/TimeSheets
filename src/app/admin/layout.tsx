@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import LogoutButton from '../components/LogoutButton'; // Add this import
 import './admin.css';
-
+import LogoutButton from '../components/LogoutButton'; // Adjust the import path as necessary
 export default function AdminLayout({
   children,
 }: {
@@ -13,18 +12,35 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: '📊' },
-    { href: '/admin/employees', label: 'Employees', icon: '👥' },
-    { href: '/admin/projects', label: 'Projects', icon: '📁' },
-    { href: '/admin/timesheets', label: 'Timesheets', icon: '📋' },
+    { href: '/admin', label: 'Dashboard', icon: '' },
+    { href: '/admin/employees', label: 'Employees', icon: '' },
+    { href: '/admin/projects', label: 'Projects', icon: '' },
+    { href: '/admin/timesheets', label: 'Timesheets', icon: '' },
   ];
 
   return (
     <div className="admin-container">
-      <LogoutButton /> {/* Add this line */}
       <div className="admin-sidebar">
         <h2>Admin Panel</h2>
-        {/* rest of sidebar content */}
+              <LogoutButton /> {/* Add this line */}
+
+        <ul className="admin-nav">
+          {navItems.map((item) => (
+            <li key={item.href}>
+              <Link 
+                href={item.href}
+                className={pathname === item.href ? 'active' : ''}
+              >
+                {item.icon} {item.label}
+              </Link>
+            </li>
+          ))}
+          <li>
+            <Link href="/" style={{ color: '#999', marginTop: '20px', display: 'block' }}>
+              ← Back to Employee View
+            </Link>
+          </li>
+        </ul>
       </div>
       <div className="admin-content">
         {children}

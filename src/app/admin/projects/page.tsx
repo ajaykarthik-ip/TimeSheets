@@ -85,7 +85,7 @@ export default function AdminProjects() {
       <table className="admin-table">
         <thead>
           <tr>
-            <th>Code</th>
+            {/* <th>Code</th> */}
             <th>Name</th>
             <th>Billable</th>
             <th>Status</th>
@@ -95,7 +95,7 @@ export default function AdminProjects() {
         <tbody>
           {filteredProjects.map((project) => (
             <tr key={project.id}>
-              <td>{project.code}</td>
+              {/* <td>{project.code}</td> */}
               <td>{project.name}</td>
               <td>
                 <span className={`status-badge ${project.billable ? 'status-active' : 'status-inactive'}`}>

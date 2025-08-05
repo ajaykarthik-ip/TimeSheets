@@ -276,7 +276,7 @@ export default function AdminEmployees() {
       <table className="admin-table">
         <thead>
           <tr>
-            <th>Employee ID</th>
+            {/* <th>Employee ID</th> */}
             <th>Name</th>
             <th>Email</th>
             <th>Department</th>
@@ -288,7 +288,7 @@ export default function AdminEmployees() {
         <tbody>
           {filteredEmployees.map((employee) => (
             <tr key={employee.id}>
-              <td>{employee.employee_id}</td>
+              {/* <td>{employee.employee_id}</td> */}
               <td>{employee.full_name}</td>
               <td>{employee.email}</td>
               <td>{employee.department}</td>
