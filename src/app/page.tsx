@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import './page.css'; 
+import LogoutButton from './components/LogoutButton';
 type TimesheetRow = {
   id: number
   projectCode: string
@@ -179,6 +180,8 @@ export default function SimplifiedTimesheet() {
 
   return (
     <div className="timesheet-container">
+            <LogoutButton /> {/* Add this line */}
+
       {/* Header Section */}
       <div className="timesheet-header">
         <h1>Employee Weekly Timesheet</h1>

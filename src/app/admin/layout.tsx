@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import LogoutButton from '../components/LogoutButton'; // Add this import
 import './admin.css';
 
 export default function AdminLayout({
@@ -20,25 +21,10 @@ export default function AdminLayout({
 
   return (
     <div className="admin-container">
+      <LogoutButton /> {/* Add this line */}
       <div className="admin-sidebar">
         <h2>Admin Panel</h2>
-        <ul className="admin-nav">
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <Link 
-                href={item.href}
-                className={pathname === item.href ? 'active' : ''}
-              >
-                {item.icon} {item.label}
-              </Link>
-            </li>
-          ))}
-          <li>
-            <Link href="/" style={{ color: '#999', marginTop: '20px', display: 'block' }}>
-              ← Back to Employee View
-            </Link>
-          </li>
-        </ul>
+        {/* rest of sidebar content */}
       </div>
       <div className="admin-content">
         {children}

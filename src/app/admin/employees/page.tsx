@@ -1,82 +1,242 @@
 "use client";
 
-import { useState } from 'react';
-import { employees, getManagers, addEmployee, updateEmployee, deleteEmployee, type Employee } from '../../data/hardcodedData';
+import { useState, useEffect } from 'react';
+
+// Types
+interface Employee {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  department: string;
+  hire_date: string;
+  is_active: boolean;
+  hourly_rate?: string;
+  manager?: number | null;
+  manager_name?: string | null;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  full_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Manager {
+  id: number;
+  employee_id: string;
+  full_name: string;
+}
+
+interface EmployeeChoices {
+  roles: { [key: string]: string };
+  departments: { [key: string]: string };
+}
 
 export default function AdminEmployees() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [choices, setChoices] = useState<EmployeeChoices>({ roles: {}, departments: {} });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
-    name: '',
+    employee_id: '',
+    username: '',
+    password: '',
+    first_name: '',
+    last_name: '',
     email: '',
+    role: '',
     department: '',
-    managerId: '',
-    role: 'employee' as 'admin' | 'employee',
-    status: 'active' as 'active' | 'inactive'
+    hire_date: '',
+    is_active: true
   });
 
-  const managers = getManagers();
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // API Base URL
+  const API_BASE = 'http://localhost:8000/api';
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const employeeData = {
-      ...formData,
-      managerId: formData.managerId ? parseInt(formData.managerId) : null
-    };
-
-    if (editingEmployee) {
-      updateEmployee(editingEmployee.id, employeeData);
-    } else {
-      addEmployee(employeeData);
+  // Fetch employees
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/employees/`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch employees');
+      const data = await response.json();
+      setEmployees(data.employees || []);
+    } catch (err) {
+      setError('Failed to load employees');
+      console.error(err);
     }
-
-    resetForm();
   };
 
+  // Fetch managers
+  const fetchManagers = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/employees/managers/`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch managers');
+      const data = await response.json();
+      setManagers(data.managers || []);
+    } catch (err) {
+      console.error('Failed to load managers:', err);
+    }
+  };
+
+  // Fetch choices
+  const fetchChoices = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/employees/choices/`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch choices');
+      const data = await response.json();
+      setChoices(data);
+    } catch (err) {
+      console.error('Failed to load choices:', err);
+    }
+  };
+
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchEmployees(),
+        fetchManagers(),
+        fetchChoices()
+      ]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  // Filter employees
+  const filteredEmployees = employees.filter(emp => 
+    emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      const submitData = {
+        ...formData,
+        is_active: formData.is_active
+      };
+
+      let response;
+      if (editingEmployee) {
+        // Update employee
+        response = await fetch(`${API_BASE}/employees/${editingEmployee.id}/`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(submitData)
+        });
+      } else {
+        // Create new employee
+        response = await fetch(`${API_BASE}/employees/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(submitData)
+        });
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save employee');
+      }
+
+      // Refresh data
+      await fetchEmployees();
+      await fetchManagers(); // Refresh managers in case role changed
+      resetForm();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Reset form
   const resetForm = () => {
     setFormData({
-      name: '',
+      employee_id: '',
+      username: '',
+      password: '',
+      first_name: '',
+      last_name: '',
       email: '',
+      role: '',
       department: '',
-      managerId: '',
-      role: 'employee',
-      status: 'active'
+      hire_date: '',
+      is_active: true
     });
     setShowForm(false);
     setEditingEmployee(null);
+    setError('');
   };
 
+  // Handle edit
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);
     setFormData({
-      name: employee.name,
+      employee_id: employee.employee_id,
+      username: '', // Don't prefill username/password for security
+      password: '',
+      first_name: employee.first_name,
+      last_name: employee.last_name,
       email: employee.email,
-      department: employee.department,
-      managerId: employee.managerId?.toString() || '',
       role: employee.role,
-      status: employee.status
+      department: employee.department,
+      hire_date: employee.hire_date,
+      is_active: employee.is_active
     });
     setShowForm(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm('Are you sure you want to delete this employee?')) {
-      deleteEmployee(id);
+  // Handle delete
+  const handleDelete = async (employee: Employee) => {
+    if (!confirm(`Are you sure you want to delete ${employee.full_name}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/employees/${employee.id}/`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete employee');
+      }
+
+      await fetchEmployees();
+      await fetchManagers(); // Refresh managers list
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
-  const getManagerName = (managerId: number | null) => {
-    if (!managerId) return 'None';
-    const manager = employees.find(emp => emp.id === managerId);
-    return manager ? manager.name : 'Unknown';
-  };
+  if (loading) {
+    return <div>Loading employees...</div>;
+  }
 
   return (
     <div>
@@ -84,6 +244,18 @@ export default function AdminEmployees() {
         <h1>Employee Management</h1>
         <p>Add, edit, and manage employees</p>
       </div>
+
+      {error && (
+        <div style={{ 
+          background: '#f8d7da', 
+          color: '#721c24', 
+          padding: '10px', 
+          borderRadius: '5px', 
+          marginBottom: '20px' 
+        }}>
+          {error}
+        </div>
+      )}
 
       <div className="actions">
         <input
@@ -104,10 +276,10 @@ export default function AdminEmployees() {
       <table className="admin-table">
         <thead>
           <tr>
+            <th>Employee ID</th>
             <th>Name</th>
             <th>Email</th>
             <th>Department</th>
-            <th>Manager</th>
             <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
@@ -116,18 +288,18 @@ export default function AdminEmployees() {
         <tbody>
           {filteredEmployees.map((employee) => (
             <tr key={employee.id}>
-              <td>{employee.name}</td>
+              <td>{employee.employee_id}</td>
+              <td>{employee.full_name}</td>
               <td>{employee.email}</td>
               <td>{employee.department}</td>
-              <td>{getManagerName(employee.managerId)}</td>
               <td>
                 <span className={`status-badge status-${employee.role}`}>
                   {employee.role.toUpperCase()}
                 </span>
               </td>
               <td>
-                <span className={`status-badge status-${employee.status}`}>
-                  {employee.status.toUpperCase()}
+                <span className={`status-badge ${employee.is_active ? 'status-active' : 'status-inactive'}`}>
+                  {employee.is_active ? 'ACTIVE' : 'INACTIVE'}
                 </span>
               </td>
               <td>
@@ -139,7 +311,7 @@ export default function AdminEmployees() {
                 </button>
                 <button 
                   className="btn btn-danger"
-                  onClick={() => handleDelete(employee.id)}
+                  onClick={() => handleDelete(employee)}
                 >
                   Delete
                 </button>
@@ -148,6 +320,12 @@ export default function AdminEmployees() {
           ))}
         </tbody>
       </table>
+
+      {filteredEmployees.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+          No employees found.
+        </div>
+      )}
 
       {showForm && (
         <div className="modal">
@@ -160,16 +338,50 @@ export default function AdminEmployees() {
             <form onSubmit={handleSubmit}>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Name</label>
+                  <label>Employee ID *</label>
                   <input
                     type="text"
                     required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    value={formData.employee_id}
+                    onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
+                    placeholder="e.g., EMP001"
                   />
                 </div>
                 <div className="form-group">
-                  <label>Email</label>
+                  <label>Username * {editingEmployee && '(leave empty to keep current)'}</label>
+                  <input
+                    type="text"
+                    required={!editingEmployee}
+                    value={formData.username}
+                    onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>First Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Last Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Email *</label>
                   <input
                     type="email"
                     required
@@ -177,29 +389,42 @@ export default function AdminEmployees() {
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                   />
                 </div>
+                <div className="form-group">
+                  <label>Password * {editingEmployee && '(leave empty to keep current)'}</label>
+                  <input
+                    type="password"
+                    required={!editingEmployee}
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    minLength={8}
+                  />
+                </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Department</label>
-                  <input
-                    type="text"
+                  <label>Role *</label>
+                  <select
+                    required
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value})}
+                  >
+                    <option value="">Select Role</option>
+                    {Object.entries(choices.roles).map(([key, value]) => (
+                      <option key={key} value={key}>{value}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Department *</label>
+                  <select
                     required
                     value={formData.department}
                     onChange={(e) => setFormData({...formData, department: e.target.value})}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Manager</label>
-                  <select
-                    value={formData.managerId}
-                    onChange={(e) => setFormData({...formData, managerId: e.target.value})}
                   >
-                    <option value="">No Manager</option>
-                    {managers.map((manager) => (
-                      <option key={manager.id} value={manager.id}>
-                        {manager.name}
-                      </option>
+                    <option value="">Select Department</option>
+                    {Object.entries(choices.departments).map(([key, value]) => (
+                      <option key={key} value={key}>{value}</option>
                     ))}
                   </select>
                 </div>
@@ -207,23 +432,22 @@ export default function AdminEmployees() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Role</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value as 'admin' | 'employee'})}
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  <label>Hire Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.hire_date}
+                    onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
+                  />
                 </div>
                 <div className="form-group">
                   <label>Status</label>
                   <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as 'active' | 'inactive'})}
+                    value={formData.is_active ? 'true' : 'false'}
+                    onChange={(e) => setFormData({...formData, is_active: e.target.value === 'true'})}
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
                   </select>
                 </div>
               </div>
