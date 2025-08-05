@@ -46,7 +46,7 @@ export default function AdminEmployees() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
-    employee_id: '',
+    employee_id: '', // Optional - will be auto-generated if not provided
     username: '',
     password: '',
     first_name: '',
@@ -132,14 +132,23 @@ export default function AdminEmployees() {
     setError('');
 
     try {
-      const submitData = {
+      // Prepare data - remove empty employee_id for auto-generation
+      const submitData: any = {
         ...formData,
         is_active: formData.is_active
       };
 
+      // Remove employee_id if empty (for auto-generation)
+      if (!formData.employee_id) {
+        delete submitData.employee_id;
+      }
+
       let response;
       if (editingEmployee) {
-        // Update employee
+        // Update employee - remove username/password if empty
+        if (!submitData.username) delete submitData.username;
+        if (!submitData.password) delete submitData.password;
+        
         response = await fetch(`${API_BASE}/employees/${editingEmployee.id}/`, {
           method: 'PUT',
           headers: {
@@ -276,10 +285,10 @@ export default function AdminEmployees() {
       <table className="admin-table">
         <thead>
           <tr>
-            {/* <th>Employee ID</th> */}
+            <th>Employee ID</th>
             <th>Name</th>
             <th>Email</th>
-            <th>Buisness Unit</th>
+            <th>Business Unit</th>
             <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
@@ -288,13 +297,13 @@ export default function AdminEmployees() {
         <tbody>
           {filteredEmployees.map((employee) => (
             <tr key={employee.id}>
-              {/* <td>{employee.employee_id}</td> */}
+              <td>{employee.employee_id}</td>
               <td>{employee.full_name}</td>
               <td>{employee.email}</td>
-              <td>{employee.department}</td>
+              <td>{choices.departments[employee.department] || employee.department}</td>
               <td>
                 <span className={`status-badge status-${employee.role}`}>
-                  {employee.role.toUpperCase()}
+                  {choices.roles[employee.role] || employee.role.toUpperCase()}
                 </span>
               </td>
               <td>
@@ -337,16 +346,7 @@ export default function AdminEmployees() {
             
             <form onSubmit={handleSubmit}>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Employee ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.employee_id}
-                    onChange={(e) => setFormData({...formData, employee_id: e.target.value})}
-                    placeholder="e.g., EMP001"
-                  />
-                </div>
+
                 <div className="form-group">
                   <label>Username * {editingEmployee && '(leave empty to keep current)'}</label>
                   <input
@@ -440,7 +440,7 @@ export default function AdminEmployees() {
                     onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
                   />
                 </div>
-                <div className="form-group">
+                {/* <div className="form-group">
                   <label>Status</label>
                   <select
                     value={formData.is_active ? 'true' : 'false'}
@@ -449,7 +449,7 @@ export default function AdminEmployees() {
                     <option value="true">Active</option>
                     <option value="false">Inactive</option>
                   </select>
-                </div>
+                </div> */}
               </div>
 
               <div style={{ marginTop: '20px', textAlign: 'right' }}>

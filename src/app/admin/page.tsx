@@ -46,14 +46,7 @@ export default function AdminDashboard() {
           <h3>Active Projects</h3>
           <div className="number">{stats.totalProjects}</div>
         </div>
-        <div className="stat-card">
-          <h3>Activities</h3>
-          <div className="number">{stats.totalActivities}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Pending Timesheets</h3>
-          <div className="number">{stats.pendingTimesheets}</div>
-        </div>
+
       </div>
 
       <div className="admin-section">
@@ -65,7 +58,6 @@ export default function AdminDashboard() {
                 <th>Employee</th>
                 <th>Week Starting</th>
                 <th>Hours</th>
-                <th>Status</th>
                 <th>Submitted</th>
               </tr>
             </thead>
@@ -75,11 +67,7 @@ export default function AdminDashboard() {
                   <td>{timesheet.employeeName}</td>
                   <td>{formatToBritishDate(timesheet.weekEnding)}</td>
                   <td>{timesheet.hours}</td>
-                  <td>
-                    <span className={`status-badge status-${timesheet.status}`}>
-                      {timesheet.status.toUpperCase()}
-                    </span>
-                  </td>
+
                   <td>{formatToBritishDate(timesheet.submittedDate)}</td>
                 </tr>
               ))}
@@ -90,15 +78,6 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      <div className="admin-section">
-        <h2>Quick Actions</h2>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <a href="/admin/employees" className="btn btn-primary">Add Employee</a>
-          <a href="/admin/projects" className="btn btn-primary">Add Project</a>
-          <a href="/admin/activities" className="btn btn-primary">Add Activity</a>
-          <a href="/admin/timesheets" className="btn btn-warning">Review Timesheets</a>
-        </div>
-      </div>
     </div>
   );
 }
