@@ -14,6 +14,22 @@ export default function AdminDashboard() {
     .filter(t => t.status === 'pending')
     .slice(0, 5);
 
+  // Function to format date to British format (dd/mm/yyyy)
+  const formatToBritishDate = (dateString: string | number | Date): string => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return String(dateString); // Return original as string if parsing fails
+    }
+  };
+
   return (
     <div>
       <div className="admin-header">
@@ -47,7 +63,7 @@ export default function AdminDashboard() {
             <thead>
               <tr>
                 <th>Employee</th>
-                <th>Week Ending</th>
+                <th>Week Starting</th>
                 <th>Hours</th>
                 <th>Status</th>
                 <th>Submitted</th>
@@ -57,14 +73,14 @@ export default function AdminDashboard() {
               {recentTimesheets.map((timesheet) => (
                 <tr key={timesheet.id}>
                   <td>{timesheet.employeeName}</td>
-                  <td>{timesheet.weekEnding}</td>
+                  <td>{formatToBritishDate(timesheet.weekEnding)}</td>
                   <td>{timesheet.hours}</td>
                   <td>
                     <span className={`status-badge status-${timesheet.status}`}>
                       {timesheet.status.toUpperCase()}
                     </span>
                   </td>
-                  <td>{timesheet.submittedDate}</td>
+                  <td>{formatToBritishDate(timesheet.submittedDate)}</td>
                 </tr>
               ))}
             </tbody>

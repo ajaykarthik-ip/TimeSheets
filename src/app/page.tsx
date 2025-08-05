@@ -214,9 +214,6 @@ export default function SimplifiedTimesheet() {
     calculateTotals()
   }, [rows])
 
-  // Check if day is weekend (Saturday = 5, Sunday = 6)
-  const isWeekend = (dayIndex: number) => dayIndex === 5 || dayIndex === 6
-
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
       <LogoutButton />
@@ -287,7 +284,7 @@ export default function SimplifiedTimesheet() {
               fontSize: '12px',
               marginBottom: '5px',
               textTransform: 'uppercase'
-            }}>Week Ending</label>
+            }}>Week Starting</label>
             <span style={{ color: '#333', fontSize: '14px' }}>{weekEndingDate}</span>
           </div>
         </div>
@@ -332,7 +329,7 @@ export default function SimplifiedTimesheet() {
                 <th>Activity Type</th>
                 <th>Billable</th>
                 {weekDates.map((date, index) => (
-                  <th key={index} className={`day-header ${isWeekend(index) ? 'weekend' : ''}`}>
+                  <th key={index} className="day-header">
                     {dayNames[index]}<br/>
                     <span className="date">
                       {date.toLocaleDateString('en-US', { 
@@ -340,12 +337,6 @@ export default function SimplifiedTimesheet() {
                         day: 'numeric' 
                       })}
                     </span>
-                    {isWeekend(index) && (
-                      <>
-                        <br/>
-                        <span className="holiday-label">Holiday</span>
-                      </>
-                    )}
                   </th>
                 ))}
                 <th>Total</th>
@@ -387,7 +378,7 @@ export default function SimplifiedTimesheet() {
                     </span>
                   </td>
                   {row.hours.map((hour, index) => (
-                    <td key={index} className={isWeekend(index) ? 'weekend-cell' : ''}>
+                    <td key={index}>
                       <input
                         type="number"
                         min="0"
@@ -396,7 +387,6 @@ export default function SimplifiedTimesheet() {
                         value={hour || ''}
                         onChange={(e) => updateHour(row.id, index, parseFloat(e.target.value) || 0)}
                         className="hour-input"
-                        disabled={isWeekend(index)}
                       />
                     </td>
                   ))}
@@ -418,20 +408,13 @@ export default function SimplifiedTimesheet() {
 
         <div className="action-buttons">
           <button onClick={addRow} className="add-btn">
-            + Add Row
+            + 
           </button>
         </div>
 
         <div className="summary-section">
           <div className="summary-grid">
-            <div className="summary-item">
-              <label>Regular Hours (≤40):</label>
-              <span>{regularHours.toFixed(1)}</span>
-            </div>
-            <div className="summary-item overtime">
-              <label>Overtime Hours (&gt;40):</label>
-              <span>{overtimeHours.toFixed(1)}</span>
-            </div>
+
             <div className="summary-item">
               <label>Billable Hours:</label>
               <span>{billableHours.toFixed(1)}</span>

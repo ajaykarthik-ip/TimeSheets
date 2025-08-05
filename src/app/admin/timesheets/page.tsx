@@ -7,6 +7,22 @@ export default function AdminTimesheets() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
+  // Function to format date to British format (dd/mm/yyyy)
+  const formatToBritishDate = (dateString: string | number | Date): string => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return String(dateString); // Return original as string if parsing fails
+    }
+  };
+
   const filteredTimesheets = timesheets.filter(timesheet => {
     const matchesSearch = timesheet.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || timesheet.status === filterStatus;
@@ -42,21 +58,6 @@ export default function AdminTimesheets() {
         <p>Review and approve employee timesheets</p>
       </div>
 
-      <div className="stats-grid" style={{ marginBottom: '20px' }}>
-        <div className="stat-card">
-          <h3>Pending</h3>
-          <div className="number">{statusCounts.pending}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Approved</h3>
-          <div className="number">{statusCounts.approved}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Rejected</h3>
-          <div className="number">{statusCounts.rejected}</div>
-        </div>
-      </div>
-
       <div className="actions">
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input
@@ -66,16 +67,7 @@ export default function AdminTimesheets() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '3px' }}
-          >
-            <option value="all">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
+
         </div>
       </div>
 
@@ -83,48 +75,19 @@ export default function AdminTimesheets() {
         <thead>
           <tr>
             <th>Employee</th>
-            <th>Week Ending</th>
+            <th>Week Starting</th>
             <th>Total Hours</th>
-            <th>Status</th>
             <th>Submitted Date</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filteredTimesheets.map((timesheet) => (
             <tr key={timesheet.id}>
               <td>{timesheet.employeeName}</td>
-              <td>{timesheet.weekEnding}</td>
+              <td>{formatToBritishDate(timesheet.weekEnding)}</td>
               <td>{timesheet.hours} hrs</td>
-              <td>
-                <span className={`status-badge status-${timesheet.status}`}>
-                  {timesheet.status.toUpperCase()}
-                </span>
-              </td>
-              <td>{timesheet.submittedDate}</td>
-              <td>
-                {timesheet.status === 'pending' && (
-                  <>
-                    <button 
-                      className="btn btn-success"
-                      onClick={() => handleApprove(timesheet.id)}
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      className="btn btn-danger"
-                      onClick={() => handleReject(timesheet.id)}
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-                {timesheet.status !== 'pending' && (
-                  <span style={{ color: '#999', fontSize: '12px' }}>
-                    {timesheet.status === 'approved' ? 'Already Approved' : 'Already Rejected'}
-                  </span>
-                )}
-              </td>
+
+              <td>{formatToBritishDate(timesheet.submittedDate)}</td>
             </tr>
           ))}
         </tbody>

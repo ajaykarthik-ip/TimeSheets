@@ -279,7 +279,7 @@ export default function AdminEmployees() {
             {/* <th>Employee ID</th> */}
             <th>Name</th>
             <th>Email</th>
-            <th>Department</th>
+            <th>Buisness Unit</th>
             <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
