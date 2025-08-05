@@ -145,6 +145,9 @@ export default function SimplifiedTimesheet() {
   const [nonBillableHours, setNonBillableHours] = useState<number>(0);
   const [totalHours, setTotalHours] = useState<number>(0);
 
+  // Check if current user is admin
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
   // Get current week dates
   const getCurrentWeekDates = () => {
     const currentDay = weekStartDate.getDay();
@@ -521,6 +524,8 @@ export default function SimplifiedTimesheet() {
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Arial, sans-serif' }}>
       <LogoutButton />
 
+
+
       {error && (
         <div style={{
           position: 'fixed',
@@ -600,6 +605,19 @@ export default function SimplifiedTimesheet() {
             }}>Role</label>
             <span style={{ color: '#333', fontSize: '14px' }}>
               {currentUser.role}
+              {isAdmin && (
+                <span style={{ 
+                  marginLeft: '8px',
+                  background: '#667eea',
+                  color: 'white',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  fontSize: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  ADMIN
+                </span>
+              )}
             </span>
           </div>
           
@@ -617,6 +635,17 @@ export default function SimplifiedTimesheet() {
             </span>
           </div>
         </div>
+
+        {/* Admin Panel Button - Only show for admin users */}
+        {isAdmin && (
+          <div style={{ marginTop: '20px' }}>
+            <button
+              onClick={() => window.location.href = '/admin'}
+            >
+              🔧 Admin Panel
+            </button>
+          </div>
+        )}
 
         {/* Week Navigation */}
         <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>

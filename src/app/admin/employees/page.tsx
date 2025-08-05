@@ -36,6 +36,20 @@ interface EmployeeChoices {
   departments: { [key: string]: string };
 }
 
+// Initial form state - ensure all fields have default values
+const initialFormData = {
+  employee_id: '',
+  username: '',
+  password: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  role: '',
+  department: '',
+  hire_date: '',
+  is_active: true
+};
+
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -45,18 +59,8 @@ export default function AdminEmployees() {
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({
-    employee_id: '', // Optional - will be auto-generated if not provided
-    username: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    role: '',
-    department: '',
-    hire_date: '',
-    is_active: true
-  });
+  // Use initialFormData to ensure consistent state
+  const [formData, setFormData] = useState(initialFormData);
 
   // API Base URL
   const API_BASE = 'http://localhost:8000/api';
@@ -183,39 +187,28 @@ export default function AdminEmployees() {
     }
   };
 
-  // Reset form
+  // Reset form - always use initialFormData to ensure consistency
   const resetForm = () => {
-    setFormData({
-      employee_id: '',
-      username: '',
-      password: '',
-      first_name: '',
-      last_name: '',
-      email: '',
-      role: '',
-      department: '',
-      hire_date: '',
-      is_active: true
-    });
+    setFormData({ ...initialFormData });
     setShowForm(false);
     setEditingEmployee(null);
     setError('');
   };
 
-  // Handle edit
+  // Handle edit - ensure all fields have values
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);
     setFormData({
-      employee_id: employee.employee_id,
+      employee_id: employee.employee_id || '',
       username: '', // Don't prefill username/password for security
       password: '',
-      first_name: employee.first_name,
-      last_name: employee.last_name,
-      email: employee.email,
-      role: employee.role,
-      department: employee.department,
-      hire_date: employee.hire_date,
-      is_active: employee.is_active
+      first_name: employee.first_name || '',
+      last_name: employee.last_name || '',
+      email: employee.email || '',
+      role: employee.role || '',
+      department: employee.department || '',
+      hire_date: employee.hire_date || '',
+      is_active: employee.is_active ?? true
     });
     setShowForm(true);
   };
@@ -346,7 +339,6 @@ export default function AdminEmployees() {
             
             <form onSubmit={handleSubmit}>
               <div className="form-row">
-
                 <div className="form-group">
                   <label>Username * {editingEmployee && '(leave empty to keep current)'}</label>
                   <input
@@ -440,16 +432,6 @@ export default function AdminEmployees() {
                     onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
                   />
                 </div>
-                {/* <div className="form-group">
-                  <label>Status</label>
-                  <select
-                    value={formData.is_active ? 'true' : 'false'}
-                    onChange={(e) => setFormData({...formData, is_active: e.target.value === 'true'})}
-                  >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                </div> */}
               </div>
 
               <div style={{ marginTop: '20px', textAlign: 'right' }}>
