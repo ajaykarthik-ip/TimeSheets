@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import './page.css';
+import UserSidebar from './components/UserSidebar';
+import ViewControls from './components/ViewControls';
+import TimesheetForm from './components/TimesheetForm';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPen, faFloppyDisk, faTrash } from '@fortawesome/free-solid-svg-icons';
 
 interface User {
   employee_id: string;
@@ -16,6 +21,9 @@ interface Timesheet {
   activity_type: string;
   date: string;
   hours_worked: string;
+  status?: 'draft' | 'submitted';
+  can_edit?: boolean;
+  description?: string;
 }
 
 interface Project {
@@ -27,7 +35,7 @@ type ViewMode = 'day' | 'week' | 'month';
 
 const API_BASE = 'http://localhost:8000/api';
 
-export default function SheetView() {
+export default function MainPage() {
   const [user, setUser] = useState<User | null>(null);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -37,6 +45,9 @@ export default function SheetView() {
   const [showForm, setShowForm] = useState(false);
   const [activities, setActivities] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
 
   useEffect(() => {
     loadData();
@@ -77,50 +88,74 @@ export default function SheetView() {
     }
   };
 
-  const getDateRange = () => {
-    const date = new Date(currentDate);
-    let dateFrom, dateTo;
+const getDateRange = () => {
+  const date = new Date(currentDate);
+  let dateFrom, dateTo;
 
-    if (viewMode === 'day') {
-      dateFrom = dateTo = date.toISOString().split('T')[0];
-    } else if (viewMode === 'week') {
-      const monday = new Date(date);
-      monday.setDate(date.getDate() - date.getDay() + 1);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      dateFrom = monday.toISOString().split('T')[0];
-      dateTo = sunday.toISOString().split('T')[0];
-    } else {
-      const start = new Date(date.getFullYear(), date.getMonth(), 1);
-      const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-      dateFrom = start.toISOString().split('T')[0];
-      dateTo = end.toISOString().split('T')[0];
-    }
-
-    return { dateFrom, dateTo };
-  };
-
-  const getDatesInRange = () => {
-    const { dateFrom, dateTo } = getDateRange();
-    const dates = [];
-    const start = new Date(dateFrom);
-    const end = new Date(dateTo);
+  if (viewMode === 'day') {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+    dateFrom = dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  } else if (viewMode === 'week') {
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - date.getDay() + 1);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
     
-    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-      dates.push(new Date(date));
+    dateFrom = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+    dateTo = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+  } else {
+    // Month view
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    dateFrom = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  }
+
+  return { dateFrom, dateTo };
+};
+
+  const getDaysForView = () => {
+    if (viewMode === 'day') {
+      return [new Date(currentDate)];
+    } else if (viewMode === 'week') {
+      const { dateFrom } = getDateRange();
+      const [year, month, day] = dateFrom.split('-').map(Number);
+      const monday = new Date(year, month - 1, day);
+      
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        days.push(date);
+      }
+      return days;
+    } else {
+      // Month view
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      const days = [];
+      for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
+        days.push(new Date(date));
+      }
+      return days;
     }
-    return dates;
   };
 
-  const getTimesheetsByDate = () => {
-    const timesheetMap: { [key: string]: Timesheet[] } = {};
-    timesheets.forEach(ts => {
-      if (!timesheetMap[ts.date]) {
-        timesheetMap[ts.date] = [];
-      }
-      timesheetMap[ts.date].push(ts);
-    });
-    return timesheetMap;
+  const getTimesheetsForDate = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return timesheets.filter(ts => ts.date === dateStr);
+  };
+
+  const getDayTotal = (date: Date) => {
+    const dayTimesheets = getTimesheetsForDate(date);
+    return dayTimesheets.reduce((total, ts) => total + parseFloat(ts.hours_worked || '0'), 0);
   };
 
   const navigate = (direction: number) => {
@@ -165,6 +200,61 @@ export default function SheetView() {
     }
   };
 
+  const showNotification = (message: string, type = 'success') => {
+    if (type === 'success') setSuccess(message);
+    else setError(message);
+    setTimeout(() => { setSuccess(''); setError(''); }, 3000);
+  };
+
+  const editTimesheet = async (id: number, data: any) => {
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        showNotification('Timesheet updated successfully');
+        loadData();
+        setEditingTimesheet(null);
+      }
+    } catch (error) {
+      showNotification('Failed to update timesheet', 'error');
+    }
+  };
+
+  const deleteTimesheet = async (id: number) => {
+    if (!confirm('Delete this timesheet?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        showNotification('Timesheet deleted successfully');
+        loadData();
+      }
+    } catch (error) {
+      showNotification('Failed to delete timesheet', 'error');
+    }
+  };
+
+  const submitTimesheet = async (id: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${id}/submit/`, {
+        method: 'PUT',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        showNotification('Timesheet submitted successfully');
+        loadData();
+      }
+    } catch (error) {
+      showNotification('Failed to submit timesheet', 'error');
+    }
+  };
+
   const createTimesheet = async (formData: FormData) => {
     if (!user) return;
     
@@ -188,16 +278,30 @@ export default function SheetView() {
 
       if (res.ok) {
         setShowForm(false);
+        showNotification('Timesheet created successfully');
         loadData();
       } else {
         const error = await res.json();
-        alert('Failed to create timesheet: ' + (error.error || 'Unknown error'));
+        showNotification('Failed to create timesheet: ' + (error.error || 'Unknown error'), 'error');
       }
     } catch (error) {
-      alert('Failed to create timesheet: ' + error);
+      showNotification('Failed to create timesheet: ' + error, 'error');
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleEditSubmit = (formData: FormData) => {
+    if (!editingTimesheet) return;
+    
+    const data = {
+      project: parseInt(formData.get('project') as string),
+      activity_type: formData.get('activity_type') as string,
+      date: formData.get('date') as string,
+      hours_worked: formData.get('hours_worked') as string,
+      description: formData.get('description') as string || ''
+    };
+    editTimesheet(editingTimesheet.id, data);
   };
 
   if (loading) {
@@ -214,55 +318,18 @@ export default function SheetView() {
   }
 
   const isAdmin = user.role === 'admin' || user.role === 'manager';
-  const dates = getDatesInRange();
-  const timesheetsByDate = getTimesheetsByDate();
+  const daysToShow = getDaysForView();
 
   return (
     <div className="app">
-      {/* Sidebar */}
-      <div className="sidebar">
-        <h3>User Info</h3>
-        <div className="user-info">
-          <p><strong>Name:</strong> {user.employee_name}</p>
-          <p><strong>ID:</strong> {user.employee_id}</p>
-          <p><strong>Department:</strong> {user.department}</p>
-          <p><strong>Role:</strong> {user.role}</p>
-        </div>
-        
-        {isAdmin && (
-          <button 
-            className="admin-btn" 
-            onClick={() => window.location.href = '/admin'}
-          >
-            Admin Panel
-          </button>
-        )}
-      </div>
+      <UserSidebar user={user} isAdmin={isAdmin} />
 
-      {/* Main Content */}
       <div className="main">
-        {/* Header Controls */}
         <div className="sheet-header">
-          <div className="view-controls">
-            <button 
-              className={viewMode === 'day' ? 'active' : ''}
-              onClick={() => setViewMode('day')}
-            >
-              Day
-            </button>
-            <button 
-              className={viewMode === 'week' ? 'active' : ''}
-              onClick={() => setViewMode('week')}
-            >
-              Week
-            </button>
-            <button 
-              className={viewMode === 'month' ? 'active' : ''}
-              onClick={() => setViewMode('month')}
-            >
-              Month
-            </button>
-          </div>
+          <ViewControls 
+            viewMode={viewMode} 
+            onViewModeChange={setViewMode} 
+          />
           
           <div className="date-nav">
             <button onClick={() => navigate(-1)}>‹</button>
@@ -271,35 +338,53 @@ export default function SheetView() {
           </div>
 
           <button className="add-btn" onClick={() => setShowForm(true)}>
-            + Add
+            + 
           </button>
         </div>
 
-        {/* Sheet View */}
-        <div className="sheet-container">
-          {dates.map(date => {
-            const dateStr = date.toISOString().split('T')[0];
-            const dayTimesheets = timesheetsByDate[dateStr] || [];
-            const totalHours = dayTimesheets.reduce((sum, ts) => sum + parseFloat(ts.hours_worked), 0);
+        {error && <div className="notification error">{error}</div>}
+        {success && <div className="notification success">{success}</div>}
+
+        <div className="weekly-calendar">
+          {daysToShow.map((date) => {
+            const dayTimesheets = getTimesheetsForDate(date);
+            const dayTotal = getDayTotal(date);
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            const dateNum = date.getDate();
             
             return (
-              <div key={dateStr} className="date-column">
-                <div className="date-header">
-                  <div className="date-info">
-                    <span className="day">{date.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                    <span className="date-num">{date.getDate()}</span>
+              <div key={date.toISOString()} className="day-row">
+                <div className="day-header">
+                  <div className="day-info">
+                    <div className="day-name">{dayName}</div>
+                    <div className="day-date">{dateNum}</div>
                   </div>
-                  {totalHours > 0 && (
-                    <span className="total-hours">{totalHours}h</span>
-                  )}
+                  <div className="day-total">{dayTotal}h</div>
                 </div>
-                
-                <div className="entries">
-                  {dayTimesheets.map(timesheet => (
-                    <div key={timesheet.id} className="entry">
-                      <div className="project">{timesheet.project_name}</div>
-                      <div className="activity">{timesheet.activity_type}</div>
-                      <div className="hours">{timesheet.hours_worked}h</div>
+                <div className="day-entries">
+                  {dayTimesheets.map((timesheet) => (
+                    <div key={timesheet.id} className="timesheet-entry">
+                      <div className="entry-project">{timesheet.project_name}</div>
+                      <div className="entry-activity">{timesheet.activity_type}</div>
+                      <div className="entry-hours">{timesheet.hours_worked}h</div>
+                      <div className="entry-actions">
+                        {timesheet.status !== 'submitted' && (
+                          <>
+                            <button onClick={() => setEditingTimesheet(timesheet)} title="Edit">
+                              <FontAwesomeIcon icon={faPen} />
+                            </button>
+                            <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
+                              <FontAwesomeIcon icon={faTrash} />
+                            </button>
+                            <button onClick={() => submitTimesheet(timesheet.id)} title="Submit">
+                              <FontAwesomeIcon icon={faFloppyDisk} />
+                            </button>
+                          </>
+                        )}
+                        {timesheet.status === 'submitted' && (
+                          <span className="submitted-status">Submitted</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -308,60 +393,31 @@ export default function SheetView() {
           })}
         </div>
 
-        {/* Create Form */}
         {showForm && (
-          <div className="form-overlay">
-            <form className="create-form" onSubmit={(e) => {
-              e.preventDefault();
-              createTimesheet(new FormData(e.currentTarget));
-            }}>
-              <h3>Create Timesheet</h3>
-              
-              <label>
-                Project:
-                <select name="project" required onChange={(e) => {
-                  if (e.target.value) loadActivities(parseInt(e.target.value));
-                }}>
-                  <option value="">Select Project</option>
-                  {projects.map(project => (
-                    <option key={project.id} value={project.id}>{project.name}</option>
-                  ))}
-                </select>
-              </label>
+          <TimesheetForm
+            projects={projects}
+            activities={activities}
+            onProjectChange={loadActivities}
+            onSubmit={createTimesheet}
+            onCancel={() => setShowForm(false)}
+            creating={creating}
+            title="Create Timesheet"
+            submitText="Create"
+          />
+        )}
 
-              <label>
-                Activity:
-                <select name="activity_type" required>
-                  <option value="">Select Activity</option>
-                  {activities.map(activity => (
-                    <option key={activity} value={activity}>{activity}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Date:
-                <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} />
-              </label>
-
-              <label>
-                Hours:
-                <input type="number" name="hours_worked" step="0.25" min="0.25" max="24" required />
-              </label>
-
-              <label>
-                Description (optional):
-                <textarea name="description" rows={3}></textarea>
-              </label>
-
-              <div className="form-buttons">
-                <button type="button" onClick={() => setShowForm(false)}>Cancel</button>
-                <button type="submit" disabled={creating}>
-                  {creating ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </form>
-          </div>
+        {editingTimesheet && (
+          <TimesheetForm
+            projects={projects}
+            activities={activities}
+            editingTimesheet={editingTimesheet}
+            onProjectChange={loadActivities}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setEditingTimesheet(null)}
+            creating={false}
+            title="Edit Timesheet"
+            submitText="Update"
+          />
         )}
       </div>
     </div>
