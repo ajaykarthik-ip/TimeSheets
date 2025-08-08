@@ -6,7 +6,7 @@ import UserSidebar from './components/UserSidebar';
 import ViewControls from './components/ViewControls';
 import TimesheetForm from './components/TimesheetForm';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPen, faFloppyDisk, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPen, faTrash, faCheck, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 interface User {
   employee_id: string;
@@ -48,6 +48,7 @@ export default function MainPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
+  const [submittingWeek, setSubmittingWeek] = useState(false); // NEW
 
   useEffect(() => {
     loadData();
@@ -88,35 +89,35 @@ export default function MainPage() {
     }
   };
 
-const getDateRange = () => {
-  const date = new Date(currentDate);
-  let dateFrom, dateTo;
+  const getDateRange = () => {
+    const date = new Date(currentDate);
+    let dateFrom, dateTo;
 
-  if (viewMode === 'day') {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    dateFrom = dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  } else if (viewMode === 'week') {
-    const monday = new Date(date);
-    monday.setDate(date.getDate() - date.getDay() + 1);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    
-    dateFrom = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-    dateTo = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
-  } else {
-    // Month view
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    dateFrom = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  }
+    if (viewMode === 'day') {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      dateFrom = dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (viewMode === 'week') {
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - date.getDay() + 1);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      
+      dateFrom = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+      dateTo = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+    } else {
+      // Month view
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      
+      dateFrom = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
 
-  return { dateFrom, dateTo };
-};
+    return { dateFrom, dateTo };
+  };
 
   const getDaysForView = () => {
     if (viewMode === 'day') {
@@ -145,6 +146,96 @@ const getDateRange = () => {
         days.push(new Date(date));
       }
       return days;
+    }
+  };
+
+  // NEW FUNCTION: Get week start date for current view
+  const getWeekStartDate = () => {
+    if (viewMode !== 'week') return null;
+    const { dateFrom } = getDateRange();
+    return dateFrom;
+  };
+
+  // NEW FUNCTION: Get draft count for current week
+  const getWeekDraftCount = () => {
+    if (viewMode !== 'week') return 0;
+    return timesheets.filter(ts => ts.status === 'draft').length;
+  };
+
+  // NEW FUNCTION: Get submitted count for current week
+  const getWeekSubmittedCount = () => {
+    if (viewMode !== 'week') return 0;
+    return timesheets.filter(ts => ts.status === 'submitted').length;
+  };
+
+  // NEW FUNCTION: Submit entire week
+  const submitWeek = async () => {
+    const weekStartDate = getWeekStartDate();
+    if (!weekStartDate) {
+      showNotification('Week submission only available in week view', 'error');
+      return;
+    }
+
+    const draftCount = getWeekDraftCount();
+    if (draftCount === 0) {
+      showNotification('No draft timesheets to submit for this week', 'error');
+      return;
+    }
+
+    if (!confirm(`Submit ${draftCount} draft timesheet(s) for this week?`)) {
+      return;
+    }
+
+    setSubmittingWeek(true);
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/submit-week/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          week_start_date: weekStartDate,
+          force_submit: false
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        showNotification(`Week submitted successfully! ${data.submitted_count} timesheets submitted.`);
+        loadData(); // Reload to show updated status
+      } else {
+        if (data.can_force_submit) {
+          // Show warnings and ask if user wants to force submit
+          const warningMsg = `Warnings found:\n${data.week_warnings?.join('\n') || ''}\n\nDo you want to submit anyway?`;
+          if (confirm(warningMsg)) {
+            // Retry with force_submit
+            const forceRes = await fetch(`${API_BASE}/timesheets/submit-week/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                week_start_date: weekStartDate,
+                force_submit: true
+              })
+            });
+
+            if (forceRes.ok) {
+              const forceData = await forceRes.json();
+              showNotification(`Week submitted with warnings! ${forceData.submitted_count} timesheets submitted.`);
+              loadData();
+            } else {
+              const forceError = await forceRes.json();
+              showNotification(`Failed to submit week: ${forceError.error}`, 'error');
+            }
+          }
+        } else {
+          showNotification(`Failed to submit week: ${data.error}`, 'error');
+        }
+      }
+    } catch (error) {
+      showNotification('Failed to submit week: ' + error, 'error');
+    } finally {
+      setSubmittingWeek(false);
     }
   };
 
@@ -240,20 +331,7 @@ const getDateRange = () => {
     }
   };
 
-  const submitTimesheet = async (id: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/timesheets/${id}/submit/`, {
-        method: 'PUT',
-        credentials: 'include'
-      });
-      if (res.ok) {
-        showNotification('Timesheet submitted successfully');
-        loadData();
-      }
-    } catch (error) {
-      showNotification('Failed to submit timesheet', 'error');
-    }
-  };
+  // REMOVED: submitTimesheet function (individual submission)
 
   const createTimesheet = async (formData: FormData) => {
     if (!user) return;
@@ -278,7 +356,7 @@ const getDateRange = () => {
 
       if (res.ok) {
         setShowForm(false);
-        showNotification('Timesheet created successfully');
+        showNotification('Timesheet draft created successfully');
         loadData();
       } else {
         const error = await res.json();
@@ -319,6 +397,8 @@ const getDateRange = () => {
 
   const isAdmin = user.role === 'admin' || user.role === 'manager';
   const daysToShow = getDaysForView();
+  const weekDraftCount = getWeekDraftCount();
+  const weekSubmittedCount = getWeekSubmittedCount();
 
   return (
     <div className="app">
@@ -337,10 +417,51 @@ const getDateRange = () => {
             <button onClick={() => navigate(1)}>›</button>
           </div>
 
-          <button className="add-btn" onClick={() => setShowForm(true)}>
-            + 
-          </button>
+          <div className="header-actions">
+            <button className="add-btn" onClick={() => setShowForm(true)}>
+              + Add Entry
+            </button>
+            
+            {/* NEW: Weekly Submit Button - Only show in week view */}
+            {viewMode === 'week' && (
+              <button 
+                className="submit-week-btn" 
+                onClick={submitWeek}
+                disabled={submittingWeek || weekDraftCount === 0}
+                title={weekDraftCount === 0 ? 'No drafts to submit' : `Submit ${weekDraftCount} draft(s)`}
+              >
+                {submittingWeek ? (
+                  'Submitting...'
+                ) : (
+                  <>
+                    <FontAwesomeIcon icon={faCheck} />
+                    Submit Week ({weekDraftCount})
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* NEW: Week Summary - Only show in week view */}
+        {viewMode === 'week' && (
+          <div className="week-summary">
+            <span className="summary-item">
+              <FontAwesomeIcon icon={faPen} style={{color: '#ffc107'}} />
+              {weekDraftCount} Draft(s)
+            </span>
+            <span className="summary-item">
+              <FontAwesomeIcon icon={faCheck} style={{color: '#28a745'}} />
+              {weekSubmittedCount} Submitted
+            </span>
+            {weekDraftCount > 0 && (
+              <span className="summary-warning">
+                <FontAwesomeIcon icon={faExclamationTriangle} style={{color: '#dc3545'}} />
+                Week not submitted yet
+              </span>
+            )}
+          </div>
+        )}
 
         {error && <div className="notification error">{error}</div>}
         {success && <div className="notification success">{success}</div>}
@@ -367,6 +488,17 @@ const getDateRange = () => {
                       <div className="entry-project">{timesheet.project_name}</div>
                       <div className="entry-activity">{timesheet.activity_type}</div>
                       <div className="entry-hours">{timesheet.hours_worked}h</div>
+                      <div className="entry-status">
+                        {timesheet.status === 'submitted' ? (
+                          <span className="submitted-status">
+                            <FontAwesomeIcon icon={faCheck} /> Submitted
+                          </span>
+                        ) : (
+                          <span className="draft-status">
+                            <FontAwesomeIcon icon={faPen} /> Draft
+                          </span>
+                        )}
+                      </div>
                       <div className="entry-actions">
                         {timesheet.status !== 'submitted' && (
                           <>
@@ -376,13 +508,8 @@ const getDateRange = () => {
                             <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
                               <FontAwesomeIcon icon={faTrash} />
                             </button>
-                            <button onClick={() => submitTimesheet(timesheet.id)} title="Submit">
-                              <FontAwesomeIcon icon={faFloppyDisk} />
-                            </button>
+                            {/* REMOVED: Individual submit button */}
                           </>
-                        )}
-                        {timesheet.status === 'submitted' && (
-                          <span className="submitted-status">Submitted</span>
                         )}
                       </div>
                     </div>
@@ -401,8 +528,8 @@ const getDateRange = () => {
             onSubmit={createTimesheet}
             onCancel={() => setShowForm(false)}
             creating={creating}
-            title="Create Timesheet"
-            submitText="Create"
+            title="Create Timesheet Draft"
+            submitText="Save as Draft"
           />
         )}
 
@@ -415,8 +542,8 @@ const getDateRange = () => {
             onSubmit={handleEditSubmit}
             onCancel={() => setEditingTimesheet(null)}
             creating={false}
-            title="Edit Timesheet"
-            submitText="Update"
+            title="Edit Timesheet Draft"
+            submitText="Update Draft"
           />
         )}
       </div>

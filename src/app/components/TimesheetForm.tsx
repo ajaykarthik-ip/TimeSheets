@@ -40,9 +40,41 @@ export default function TimesheetForm({
 }: TimesheetFormProps) {
   const [creating, setCreating] = useState(false);
 
+  // Helper function to format date for input (avoids timezone issues)
+  const formatDateForInput = (dateString: string) => {
+    if (!dateString) {
+      // Return today's date in YYYY-MM-DD format
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // If it's already in YYYY-MM-DD format, return as is
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateString;
+    }
+    
+    // If it's a different format, parse and convert
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(new FormData(e.currentTarget as HTMLFormElement));
+    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    
+    // Ensure date is in correct format
+    const dateValue = formData.get('date') as string;
+    if (dateValue) {
+      formData.set('date', dateValue); // Keep the YYYY-MM-DD format
+    }
+    
+    onSubmit(formData);
   };
 
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -99,7 +131,7 @@ export default function TimesheetForm({
             type="date" 
             name="date" 
             required 
-            defaultValue={editingTimesheet?.date || new Date().toISOString().split('T')[0]} 
+            defaultValue={formatDateForInput(editingTimesheet?.date || '')}
           />
         </label>
 
@@ -122,6 +154,7 @@ export default function TimesheetForm({
             name="description" 
             rows={3}
             defaultValue={editingTimesheet?.description || ''}
+            placeholder="Optional: Describe what you worked on..."
           />
         </label>
 
