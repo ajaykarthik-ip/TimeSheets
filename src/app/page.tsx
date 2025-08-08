@@ -419,7 +419,7 @@ export default function MainPage() {
 
           <div className="header-actions">
             <button className="add-btn" onClick={() => setShowForm(true)}>
-              + Add Entry
+              + 
             </button>
             
             {/* NEW: Weekly Submit Button - Only show in week view */}

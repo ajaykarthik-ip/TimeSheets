@@ -66,13 +66,18 @@ export default function TimesheetForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
     
-    // Ensure date is in correct format
-    const dateValue = formData.get('date') as string;
-    if (dateValue) {
-      formData.set('date', dateValue); // Keep the YYYY-MM-DD format
-    }
+    // FIX: Get the date value directly and ensure it stays as selected
+    const dateInput = form.querySelector('input[name="date"]') as HTMLInputElement;
+    const selectedDate = dateInput.value; // This is in YYYY-MM-DD format
+    
+    // Ensure the date is exactly what was selected
+    formData.set('date', selectedDate);
+    
+    console.log('Selected date:', selectedDate); // Debug log
+    console.log('All form data:', Object.fromEntries(formData)); // Debug log
     
     onSubmit(formData);
   };
