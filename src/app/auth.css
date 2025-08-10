@@ -122,36 +122,53 @@ body {
   }
 }
 
-/* Fix Google Sign-In button rendering issues */
+/* Google Sign-In Section - Enhanced for proper button rendering */
 .google-signin-section {
   position: relative;
   z-index: 10;
+  margin-bottom: 12px;
+  width: 100%;
 }
 
-.google-button {
+/* Ensure Google's button iframe renders properly */
+#google-signin-button,
+#google-signin-button-register {
   position: relative;
   z-index: 11;
-  /* Temporarily disable backdrop effects for Google button */
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* Ensure Google's iframe can render properly */
-#google-signin-button,
-#google-button-container {
-  position: relative;
-  z-index: 12;
   width: 100% !important;
+  min-height: 40px;
 }
 
-/* Override any backdrop-filter on Google elements */
-.google-signin-section iframe,
-.google-signin-section div[data-iframe-height] {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+/* Google button styling override to match theme */
+.google-signin-section iframe {
+  width: 100% !important;
+  border-radius: 8px !important;
 }
 
-/* Fix for Google One Tap */
+/* Loading state for Google button */
+.google-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  background: rgba(40, 40, 50, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.google-loading .spinner {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: 1px solid #4285f4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Fix Google One Tap */
 #credential_picker_container,
 #credential_picker_iframe {
   z-index: 9999 !important;
@@ -284,10 +301,6 @@ body {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-}
-
-.google-signin-section {
-  margin-bottom: 12px;
 }
 
 .google-button {
