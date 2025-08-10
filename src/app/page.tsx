@@ -135,18 +135,76 @@ export default function MainPage() {
       dateFrom = formatDateToString(monday);
       dateTo = formatDateToString(sunday);
     } else {
-      // Month view
+      // Month view - extend to cover full calendar grid (6 weeks)
       const year = date.getFullYear();
       const month = date.getMonth();
       
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
+      // First day of the month
+      const firstDayOfMonth = new Date(year, month, 1);
       
-      dateFrom = formatDateToString(firstDay);
-      dateTo = formatDateToString(lastDay);
+      // Last day of the month
+      const lastDayOfMonth = new Date(year, month + 1, 0);
+      
+      // Find the Monday of the week containing the first day
+      const firstDayWeekday = firstDayOfMonth.getDay();
+      const daysToFirstMonday = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
+      const calendarStart = new Date(firstDayOfMonth);
+      calendarStart.setDate(firstDayOfMonth.getDate() - daysToFirstMonday);
+      
+      // Find the Sunday of the week containing the last day
+      const lastDayWeekday = lastDayOfMonth.getDay();
+      const daysToLastSunday = lastDayWeekday === 0 ? 0 : 7 - lastDayWeekday;
+      const calendarEnd = new Date(lastDayOfMonth);
+      calendarEnd.setDate(lastDayOfMonth.getDate() + daysToLastSunday);
+      
+      dateFrom = formatDateToString(calendarStart);
+      dateTo = formatDateToString(calendarEnd);
     }
 
     return { dateFrom, dateTo };
+  };
+
+  // NEW: Get calendar grid for month view (6 weeks x 7 days = 42 days)
+  const getMonthCalendarGrid = (): Array<Array<{ date: string; isCurrentMonth: boolean; isToday: boolean }>> => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const today = getTodayDateString();
+    
+    // First day of the month
+    const firstDayOfMonth = new Date(year, month, 1);
+    
+    // Find the Monday of the week containing the first day
+    const firstDayWeekday = firstDayOfMonth.getDay();
+    const daysToFirstMonday = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
+    const calendarStart = new Date(firstDayOfMonth);
+    calendarStart.setDate(firstDayOfMonth.getDate() - daysToFirstMonday);
+    
+    const weeks = [];
+    const currentCalendarDate = new Date(calendarStart);
+    
+    // Generate 6 weeks
+    for (let week = 0; week < 6; week++) {
+      const weekDays = [];
+      
+      // Generate 7 days for each week
+      for (let day = 0; day < 7; day++) {
+        const dateStr = formatDateToString(currentCalendarDate);
+        const isCurrentMonth = currentCalendarDate.getMonth() === month;
+        const isToday = dateStr === today;
+        
+        weekDays.push({
+          date: dateStr,
+          isCurrentMonth,
+          isToday
+        });
+        
+        currentCalendarDate.setDate(currentCalendarDate.getDate() + 1);
+      }
+      
+      weeks.push(weekDays);
+    }
+    
+    return weeks;
   };
 
   // FIXED: Corrected days calculation
@@ -165,17 +223,9 @@ export default function MainPage() {
       }
       return days;
     } else {
-      // Month view
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
-      
-      const days = [];
-      for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
-        days.push(formatDateToString(date));
-      }
-      return days;
+      // Month view - return all dates in the calendar grid
+      const grid = getMonthCalendarGrid();
+      return grid.flat().map(day => day.date);
     }
   };
 
@@ -413,6 +463,144 @@ export default function MainPage() {
     editTimesheet(editingTimesheet.id, data);
   };
 
+  // NEW: Render monthly calendar view like Google Calendar
+  const renderMonthlyView = () => {
+    const calendarGrid = getMonthCalendarGrid();
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return (
+      <div className="monthly-calendar">
+        {/* Weekday headers */}
+        <div className="calendar-header">
+          {weekdays.map(day => (
+            <div key={day} className="weekday-header">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="calendar-grid">
+          {calendarGrid.map((week, weekIndex) => (
+            week.map((day, dayIndex) => {
+              const dayTimesheets = getTimesheetsForDate(day.date);
+              const dayTotal = getDayTotal(day.date);
+              const displayDate = parseDateString(day.date);
+
+              return (
+                <div
+                  key={`${weekIndex}-${dayIndex}`}
+                  className={`calendar-day ${!day.isCurrentMonth ? 'other-month' : ''} ${day.isToday ? 'today' : ''}`}
+                >
+                  <div className="calendar-day-header">
+                    <span className="calendar-day-number">
+                      {displayDate.getDate()}
+                    </span>
+                    {dayTotal > 0 && (
+                      <span className="calendar-day-total">
+                        {dayTotal}h
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="calendar-day-entries">
+                    {dayTimesheets.slice(0, 3).map((timesheet) => (
+                      <div
+                        key={timesheet.id}
+                        className={`calendar-entry ${timesheet.status === 'submitted' ? 'submitted' : 'draft'}`}
+                        onClick={() => setEditingTimesheet(timesheet)}
+                        title={`${timesheet.project_name} - ${timesheet.activity_type} (${timesheet.hours_worked}h)`}
+                      >
+                        <span className="entry-text">
+                          {timesheet.project_name} ({timesheet.hours_worked}h)
+                        </span>
+                      </div>
+                    ))}
+                    
+                    {dayTimesheets.length > 3 && (
+                      <div className="more-entries">
+                        +{dayTimesheets.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // NEW: Render weekly view (existing logic)
+  const renderWeeklyView = () => {
+    const daysToShow = getDaysForView();
+
+    return (
+      <div className="weekly-calendar">
+        {daysToShow.map((dateStr) => {
+          const dayTimesheets = getTimesheetsForDate(dateStr);
+          const dayTotal = getDayTotal(dateStr);
+          
+          // FIXED: Proper date display
+          const displayDate = parseDateString(dateStr);
+          const dayName = displayDate.toLocaleDateString('en-GB', { 
+            weekday: 'long'
+          });
+          const monthDay = displayDate.toLocaleDateString('en-GB', { 
+            month: 'short', 
+            day: 'numeric',
+            ...(viewMode === 'month' && { year: 'numeric' })
+          });
+          
+          return (
+            <div key={dateStr} className="day-row">
+              <div className="day-header">
+                <div className="day-info">
+                  <div className="day-name">{dayName}</div>
+                  <div className="day-date">{monthDay}</div>
+                </div>
+                <div className="day-total">{dayTotal}h</div>
+              </div>
+              <div className="day-entries">
+                {dayTimesheets.map((timesheet) => (
+                  <div key={timesheet.id} className="timesheet-entry">
+                    <div className="entry-project">{timesheet.project_name}</div>
+                    <div className="entry-activity">{timesheet.activity_type}</div>
+                    <div className="entry-hours">{timesheet.hours_worked}h</div>
+                    <div className="entry-status">
+                      {timesheet.status === 'submitted' ? (
+                        <span className="submitted-status">
+                          <FontAwesomeIcon icon={faCheck} /> Submitted
+                        </span>
+                      ) : (
+                        <span className="draft-status">
+                          {/* <FontAwesomeIcon icon={faPen} /> Draft */}
+                        </span>
+                      )}
+                    </div>
+                    <div className="entry-date-stored" style={{fontSize: '0.8em', color: '#666'}}>
+                      Date: {timesheet.date}
+                    </div>
+                    <div className="entry-actions">
+                      {timesheet.status !== 'submitted' && (
+                        <>
+                          <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -427,7 +615,6 @@ export default function MainPage() {
   }
 
   const isAdmin = user.role === 'admin' || user.role === 'manager';
-  const daysToShow = getDaysForView();
   const weekDraftCount = getWeekDraftCount();
   const weekSubmittedCount = getWeekSubmittedCount();
 
@@ -474,93 +661,11 @@ export default function MainPage() {
           </div>
         </div>
 
-        {/* Week Summary - Only show in week view */}
-        {/* {viewMode === 'week' && (
-          <div className="week-summary">
-            <span className="summary-item">
-              <FontAwesomeIcon icon={faPen} style={{color: '#ffc107'}} />
-              {weekDraftCount} Draft(s)
-            </span>
-            <span className="summary-item">
-              <FontAwesomeIcon icon={faCheck} style={{color: '#28a745'}} />
-              {weekSubmittedCount} Submitted
-            </span>
-            {weekDraftCount > 0 && (
-              <span className="summary-warning">
-                <FontAwesomeIcon icon={faExclamationTriangle} style={{color: '#dc3545'}} />
-                Week not submitted yet
-              </span>
-            )}
-          </div>
-        )} */}
-
         {error && <div className="notification error">{error}</div>}
         {success && <div className="notification success">{success}</div>}
 
-        <div className="weekly-calendar">
-          {daysToShow.map((dateStr) => {
-            const dayTimesheets = getTimesheetsForDate(dateStr);
-            const dayTotal = getDayTotal(dateStr);
-            
-            // FIXED: Proper date display
-            const displayDate = parseDateString(dateStr);
-            const dayName = displayDate.toLocaleDateString('en-GB', { 
-              weekday: 'long'
-            });
-            const monthDay = displayDate.toLocaleDateString('en-GB', { 
-              month: 'short', 
-              day: 'numeric',
-              ...(viewMode === 'month' && { year: 'numeric' })
-            });
-            
-            return (
-              <div key={dateStr} className="day-row">
-                <div className="day-header">
-                  <div className="day-info">
-                    <div className="day-name">{dayName}</div>
-                    <div className="day-date">{monthDay}</div>
-                    {/* Removed debug info - dates should now match */}
-                  </div>
-                  <div className="day-total">{dayTotal}h</div>
-                </div>
-                <div className="day-entries">
-                  {dayTimesheets.map((timesheet) => (
-                    <div key={timesheet.id} className="timesheet-entry">
-                      <div className="entry-project">{timesheet.project_name}</div>
-                      <div className="entry-activity">{timesheet.activity_type}</div>
-                      <div className="entry-hours">{timesheet.hours_worked}h</div>
-                      <div className="entry-status">
-                        {timesheet.status === 'submitted' ? (
-                          <span className="submitted-status">
-                            <FontAwesomeIcon icon={faCheck} /> Submitted
-                          </span>
-                        ) : (
-                          <span className="draft-status">
-                            {/* <FontAwesomeIcon icon={faPen} /> Draft */}
-                          </span>
-                        )}
-                      </div>
-                      {/* Show stored date for verification - should match display now */}
-                      <div className="entry-date-stored" style={{fontSize: '0.8em', color: '#666'}}>
-                        Date: {timesheet.date}
-                      </div>
-                      <div className="entry-actions">
-                        {timesheet.status !== 'submitted' && (
-                          <>
-
-                            <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
-                              <FontAwesomeIcon icon={faTrash} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {/* Render different views based on viewMode */}
+        {viewMode === 'month' ? renderMonthlyView() : renderWeeklyView()}
 
         {showForm && (
           <TimesheetForm
