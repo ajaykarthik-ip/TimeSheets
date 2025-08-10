@@ -36,7 +36,7 @@ interface EmployeeChoices {
   departments: { [key: string]: string };
 }
 
-// Initial form state - ensure all fields have default values
+// Initial form state
 const initialFormData = {
   employee_id: '',
   username: '',
@@ -59,7 +59,6 @@ export default function AdminEmployees() {
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  // Use initialFormData to ensure consistent state
   const [formData, setFormData] = useState(initialFormData);
 
   // API Base URL
@@ -136,20 +135,17 @@ export default function AdminEmployees() {
     setError('');
 
     try {
-      // Prepare data - remove empty employee_id for auto-generation
       const submitData: any = {
         ...formData,
         is_active: formData.is_active
       };
 
-      // Remove employee_id if empty (for auto-generation)
       if (!formData.employee_id) {
         delete submitData.employee_id;
       }
 
       let response;
       if (editingEmployee) {
-        // Update employee - remove username/password if empty
         if (!submitData.username) delete submitData.username;
         if (!submitData.password) delete submitData.password;
         
@@ -162,7 +158,6 @@ export default function AdminEmployees() {
           body: JSON.stringify(submitData)
         });
       } else {
-        // Create new employee
         response = await fetch(`${API_BASE}/employees/`, {
           method: 'POST',
           headers: {
@@ -178,16 +173,15 @@ export default function AdminEmployees() {
         throw new Error(errorData.error || 'Failed to save employee');
       }
 
-      // Refresh data
       await fetchEmployees();
-      await fetchManagers(); // Refresh managers in case role changed
+      await fetchManagers();
       resetForm();
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  // Reset form - always use initialFormData to ensure consistency
+  // Reset form
   const resetForm = () => {
     setFormData({ ...initialFormData });
     setShowForm(false);
@@ -195,21 +189,36 @@ export default function AdminEmployees() {
     setError('');
   };
 
-  // Handle edit - ensure all fields have values
+  // Handle edit
   const handleEdit = (employee: Employee) => {
+    console.log('Editing employee:', employee); // Debug log
     setEditingEmployee(employee);
-    setFormData({
+    
+    // Parse full_name into first_name and last_name if they don't exist separately
+    let firstName = employee.first_name || '';
+    let lastName = employee.last_name || '';
+    
+    if (!firstName && !lastName && employee.full_name) {
+      const nameParts = employee.full_name.trim().split(' ');
+      firstName = nameParts[0] || '';
+      lastName = nameParts.slice(1).join(' ') || '';
+    }
+    
+    const newFormData = {
       employee_id: employee.employee_id || '',
-      username: '', // Don't prefill username/password for security
-      password: '',
-      first_name: employee.first_name || '',
-      last_name: employee.last_name || '',
+      username: '', // Only used for new employees
+      password: '', // Only used for new employees
+      first_name: firstName,
+      last_name: lastName,
       email: employee.email || '',
       role: employee.role || '',
       department: employee.department || '',
       hire_date: employee.hire_date || '',
       is_active: employee.is_active ?? true
-    });
+    };
+    
+    console.log('Setting form data:', newFormData); // Debug log
+    setFormData(newFormData);
     setShowForm(true);
   };
 
@@ -230,14 +239,14 @@ export default function AdminEmployees() {
       }
 
       await fetchEmployees();
-      await fetchManagers(); // Refresh managers list
+      await fetchManagers();
     } catch (err: any) {
       setError(err.message);
     }
   };
 
   if (loading) {
-    return <div>Loading employees...</div>;
+    return <div className="loading">Loading employees...</div>;
   }
 
   return (
@@ -248,13 +257,7 @@ export default function AdminEmployees() {
       </div>
 
       {error && (
-        <div style={{ 
-          background: '#f8d7da', 
-          color: '#721c24', 
-          padding: '10px', 
-          borderRadius: '5px', 
-          marginBottom: '20px' 
-        }}>
+        <div className="alert alert-error">
           {error}
         </div>
       )}
@@ -281,7 +284,7 @@ export default function AdminEmployees() {
             <th>Employee ID</th>
             <th>Name</th>
             <th>Email</th>
-            <th>Business Unit</th>
+            <th>Department</th>
             <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
@@ -324,7 +327,7 @@ export default function AdminEmployees() {
       </table>
 
       {filteredEmployees.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+        <div className="empty-state">
           No employees found.
         </div>
       )}
@@ -338,17 +341,32 @@ export default function AdminEmployees() {
             </div>
             
             <form onSubmit={handleSubmit}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Username * {editingEmployee && '(leave empty to keep current)'}</label>
-                  <input
-                    type="text"
-                    required={!editingEmployee}
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
-                  />
-                </div>
-              </div>
+              {!editingEmployee && (
+                <>
+                  <div className="form-group">
+                    <label>Username *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.username}
+                      onChange={(e) => setFormData({...formData, username: e.target.value})}
+                      placeholder="Enter username"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Password *</label>
+                    <input
+                      type="password"
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      minLength={8}
+                      placeholder="Enter password (min 8 characters)"
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="form-row">
                 <div className="form-group">
@@ -382,19 +400,6 @@ export default function AdminEmployees() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Password * {editingEmployee && '(leave empty to keep current)'}</label>
-                  <input
-                    type="password"
-                    required={!editingEmployee}
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    minLength={8}
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
                   <label>Role *</label>
                   <select
                     required
@@ -407,6 +412,9 @@ export default function AdminEmployees() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
                   <label>Department *</label>
                   <select
@@ -420,9 +428,6 @@ export default function AdminEmployees() {
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div className="form-row">
                 <div className="form-group">
                   <label>Hire Date *</label>
                   <input

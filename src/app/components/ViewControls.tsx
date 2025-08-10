@@ -1,6 +1,6 @@
 import React from 'react';
 
-type ViewMode = 'day' | 'week' | 'month';
+type ViewMode = 'week' | 'month';
 
 interface ViewControlsProps {
   viewMode: ViewMode;
@@ -10,12 +10,6 @@ interface ViewControlsProps {
 export default function ViewControls({ viewMode, onViewModeChange }: ViewControlsProps) {
   return (
     <div className="view-controls">
-      <button 
-        className={viewMode === 'day' ? 'active' : ''}
-        onClick={() => onViewModeChange('day')}
-      >
-        Day
-      </button>
       <button 
         className={viewMode === 'week' ? 'active' : ''}
         onClick={() => onViewModeChange('week')}

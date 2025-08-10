@@ -15,7 +15,6 @@ export default function AdminLayout({
     { href: '/admin', label: 'Dashboard', icon: '' },
     { href: '/admin/employees', label: 'Employees', icon: '' },
     { href: '/admin/projects', label: 'Projects', icon: '' },
-    { href: '/admin/timesheets', label: 'Timesheets', icon: '' },
   ];
 
   return (

@@ -31,7 +31,7 @@ interface Project {
   name: string;
 }
 
-type ViewMode = 'day' | 'week' | 'month';
+type ViewMode = 'week' | 'month';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -47,8 +47,8 @@ export default function MainPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
-  const [submittingWeek, setSubmittingWeek] = useState(false); // NEW
+
+  const [submittingWeek, setSubmittingWeek] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -93,12 +93,7 @@ export default function MainPage() {
     const date = new Date(currentDate);
     let dateFrom, dateTo;
 
-    if (viewMode === 'day') {
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const day = date.getDate();
-      dateFrom = dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    } else if (viewMode === 'week') {
+    if (viewMode === 'week') {
       const monday = new Date(date);
       monday.setDate(date.getDate() - date.getDay() + 1);
       const sunday = new Date(monday);
@@ -120,9 +115,7 @@ export default function MainPage() {
   };
 
   const getDaysForView = () => {
-    if (viewMode === 'day') {
-      return [new Date(currentDate)];
-    } else if (viewMode === 'week') {
+    if (viewMode === 'week') {
       const { dateFrom } = getDateRange();
       const [year, month, day] = dateFrom.split('-').map(Number);
       const monday = new Date(year, month - 1, day);
@@ -135,40 +128,45 @@ export default function MainPage() {
       }
       return days;
     } else {
-      // Month view
+      // Month view - Get all days including prev/next month for calendar grid
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      const firstDay = new Date(year, month, 1);
-      const lastDay = new Date(year, month + 1, 0);
       
+      // Get first day of month and what day of week it is
+      const firstDay = new Date(year, month, 1);
+      const firstDayOfWeek = firstDay.getDay();
+      
+      // Start from Monday of the week containing the first day
+      const startDate = new Date(firstDay);
+      startDate.setDate(firstDay.getDate() - (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1));
+      
+      // Generate 42 days (6 weeks) for calendar grid
       const days = [];
-      for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
-        days.push(new Date(date));
+      for (let i = 0; i < 42; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        days.push(date);
       }
       return days;
     }
   };
 
-  // NEW FUNCTION: Get week start date for current view
   const getWeekStartDate = () => {
     if (viewMode !== 'week') return null;
     const { dateFrom } = getDateRange();
     return dateFrom;
   };
 
-  // NEW FUNCTION: Get draft count for current week
   const getWeekDraftCount = () => {
     if (viewMode !== 'week') return 0;
     return timesheets.filter(ts => ts.status === 'draft').length;
   };
 
-  // NEW FUNCTION: Get submitted count for current week
   const getWeekSubmittedCount = () => {
     if (viewMode !== 'week') return 0;
     return timesheets.filter(ts => ts.status === 'submitted').length;
   };
 
-  // NEW FUNCTION: Submit entire week
   const submitWeek = async () => {
     const weekStartDate = getWeekStartDate();
     if (!weekStartDate) {
@@ -202,13 +200,11 @@ export default function MainPage() {
 
       if (res.ok) {
         showNotification(`Week submitted successfully! ${data.submitted_count} timesheets submitted.`);
-        loadData(); // Reload to show updated status
+        loadData();
       } else {
         if (data.can_force_submit) {
-          // Show warnings and ask if user wants to force submit
           const warningMsg = `Warnings found:\n${data.week_warnings?.join('\n') || ''}\n\nDo you want to submit anyway?`;
           if (confirm(warningMsg)) {
-            // Retry with force_submit
             const forceRes = await fetch(`${API_BASE}/timesheets/submit-week/`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -251,9 +247,7 @@ export default function MainPage() {
 
   const navigate = (direction: number) => {
     const newDate = new Date(currentDate);
-    if (viewMode === 'day') {
-      newDate.setDate(newDate.getDate() + direction);
-    } else if (viewMode === 'week') {
+    if (viewMode === 'week') {
       newDate.setDate(newDate.getDate() + (direction * 7));
     } else {
       newDate.setMonth(newDate.getMonth() + direction);
@@ -262,14 +256,7 @@ export default function MainPage() {
   };
 
   const formatDateHeader = () => {
-    if (viewMode === 'day') {
-      return currentDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    } else if (viewMode === 'week') {
+    if (viewMode === 'week') {
       const { dateFrom, dateTo } = getDateRange();
       return `${new Date(dateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(dateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     } else {
@@ -297,23 +284,7 @@ export default function MainPage() {
     setTimeout(() => { setSuccess(''); setError(''); }, 3000);
   };
 
-  const editTimesheet = async (id: number, data: any) => {
-    try {
-      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        showNotification('Timesheet updated successfully');
-        loadData();
-        setEditingTimesheet(null);
-      }
-    } catch (error) {
-      showNotification('Failed to update timesheet', 'error');
-    }
-  };
+
 
   const deleteTimesheet = async (id: number) => {
     if (!confirm('Delete this timesheet?')) return;
@@ -330,8 +301,6 @@ export default function MainPage() {
       showNotification('Failed to delete timesheet', 'error');
     }
   };
-
-  // REMOVED: submitTimesheet function (individual submission)
 
   const createTimesheet = async (formData: FormData) => {
     if (!user) return;
@@ -369,17 +338,11 @@ export default function MainPage() {
     }
   };
 
-  const handleEditSubmit = (formData: FormData) => {
-    if (!editingTimesheet) return;
-    
-    const data = {
-      project: parseInt(formData.get('project') as string),
-      activity_type: formData.get('activity_type') as string,
-      date: formData.get('date') as string,
-      hours_worked: formData.get('hours_worked') as string,
-      description: formData.get('description') as string || ''
-    };
-    editTimesheet(editingTimesheet.id, data);
+
+
+  // Helper function to check if date is in current month
+  const isCurrentMonth = (date: Date) => {
+    return date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
   };
 
   if (loading) {
@@ -395,6 +358,10 @@ export default function MainPage() {
     );
   }
 
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+  };
+
   const isAdmin = user.role === 'admin' || user.role === 'manager';
   const daysToShow = getDaysForView();
   const weekDraftCount = getWeekDraftCount();
@@ -408,7 +375,7 @@ export default function MainPage() {
         <div className="sheet-header">
           <ViewControls 
             viewMode={viewMode} 
-            onViewModeChange={setViewMode} 
+            onViewModeChange={handleViewModeChange} 
           />
           
           <div className="date-nav">
@@ -422,7 +389,6 @@ export default function MainPage() {
               + 
             </button>
             
-            {/* NEW: Weekly Submit Button - Only show in week view */}
             {viewMode === 'week' && (
               <button 
                 className="submit-week-btn" 
@@ -443,8 +409,7 @@ export default function MainPage() {
           </div>
         </div>
 
-        {/* NEW: Week Summary - Only show in week view */}
-        {viewMode === 'week' && (
+        {/* {viewMode === 'week' && (
           <div className="week-summary">
             <span className="summary-item">
               <FontAwesomeIcon icon={faPen} style={{color: '#ffc107'}} />
@@ -461,64 +426,116 @@ export default function MainPage() {
               </span>
             )}
           </div>
-        )}
+        )} */}
 
         {error && <div className="notification error">{error}</div>}
         {success && <div className="notification success">{success}</div>}
 
-        <div className="weekly-calendar">
-          {daysToShow.map((date) => {
-            const dayTimesheets = getTimesheetsForDate(date);
-            const dayTotal = getDayTotal(date);
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-            const dateNum = date.getDate();
-            
-            return (
-              <div key={date.toISOString()} className="day-row">
-                <div className="day-header">
-                  <div className="day-info">
-                    <div className="day-name">{dayName}</div>
-                    <div className="day-date">{dateNum}</div>
+        {viewMode === 'week' ? (
+          <div className="weekly-calendar">
+            {daysToShow.map((date) => {
+              const dayTimesheets = getTimesheetsForDate(date);
+              const dayTotal = getDayTotal(date);
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+              const dateNum = date.getDate();
+              
+              return (
+                <div key={date.toISOString()} className="day-row">
+                  <div className="day-header">
+                    <div className="day-info">
+                      <div className="day-name">{dayName}</div>
+                      <div className="day-date">{dateNum}</div>
+                    </div>
+                    <div className="day-total">{dayTotal}h</div>
                   </div>
-                  <div className="day-total">{dayTotal}h</div>
-                </div>
-                <div className="day-entries">
-                  {dayTimesheets.map((timesheet) => (
-                    <div key={timesheet.id} className="timesheet-entry">
-                      <div className="entry-project">{timesheet.project_name}</div>
-                      <div className="entry-activity">{timesheet.activity_type}</div>
-                      <div className="entry-hours">{timesheet.hours_worked}h</div>
-                      <div className="entry-status">
-                        {timesheet.status === 'submitted' ? (
-                          <span className="submitted-status">
-                            <FontAwesomeIcon icon={faCheck} /> Submitted
-                          </span>
-                        ) : (
-                          <span className="draft-status">
-                            <FontAwesomeIcon icon={faPen} /> Draft
-                          </span>
-                        )}
-                      </div>
-                      <div className="entry-actions">
-                        {timesheet.status !== 'submitted' && (
-                          <>
-                            <button onClick={() => setEditingTimesheet(timesheet)} title="Edit">
-                              <FontAwesomeIcon icon={faPen} />
-                            </button>
+                  <div className="day-entries">
+                    {dayTimesheets.map((timesheet) => (
+                      <div key={timesheet.id} className="timesheet-entry">
+                        <div className="entry-project">{timesheet.project_name}</div>
+                        <div className="entry-activity">{timesheet.activity_type}</div>
+                        <div className="entry-hours">{timesheet.hours_worked}h</div>
+                        <div className="entry-status">
+                          {timesheet.status === 'submitted' ? (
+                            <span className="submitted-status">
+                              <FontAwesomeIcon icon={faCheck} /> Submitted
+                            </span>
+                          ) : (
+                            <span className="draft-status">
+                              <FontAwesomeIcon icon={faPen} /> Draft
+                            </span>
+                          )}
+                        </div>
+                        <div className="entry-actions">
+                          {timesheet.status !== 'submitted' && (
                             <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
                               <FontAwesomeIcon icon={faTrash} />
                             </button>
-                            {/* REMOVED: Individual submit button */}
-                          </>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="monthly-calendar">
+            <div className="calendar-header">
+              <div className="weekday-header">Mon</div>
+              <div className="weekday-header">Tue</div>
+              <div className="weekday-header">Wed</div>
+              <div className="weekday-header">Thu</div>
+              <div className="weekday-header">Fri</div>
+              <div className="weekday-header">Sat</div>
+              <div className="weekday-header">Sun</div>
+            </div>
+            <div className="calendar-grid">
+              {daysToShow.map((date) => {
+                const dayTimesheets = getTimesheetsForDate(date);
+                const dayTotal = getDayTotal(date);
+                const isOtherMonth = !isCurrentMonth(date);
+                
+                function setEditingTimesheet(timesheet: Timesheet): void {
+                  throw new Error('Function not implemented.');
+                }
+
+                return (
+                  <div 
+                    key={date.toISOString()} 
+                    className={`calendar-day ${isOtherMonth ? 'other-month' : ''}`}
+                  >
+                    <div className="calendar-day-header">
+                      <span className="calendar-day-number">{date.getDate()}</span>
+                      {dayTotal > 0 && (
+                        <span className="calendar-day-total">{dayTotal}h</span>
+                      )}
+                    </div>
+                    <div className="calendar-day-entries">
+                      {dayTimesheets.slice(0, 2).map((timesheet) => (
+                        <div 
+                          key={timesheet.id} 
+                          className={`calendar-entry ${timesheet.status === 'submitted' ? 'submitted' : 'draft'}`}
+                          onClick={() => setEditingTimesheet(timesheet)}
+                          title={`${timesheet.project_name} - ${timesheet.activity_type} (${timesheet.hours_worked}h)`}
+                        >
+                          <span className="entry-text">
+                            {timesheet.project_name} ({timesheet.hours_worked}h)
+                          </span>
+                        </div>
+                      ))}
+                      {dayTimesheets.length > 2 && (
+                        <div className="more-entries">
+                          +{dayTimesheets.length - 2} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {showForm && (
           <TimesheetForm
@@ -530,20 +547,6 @@ export default function MainPage() {
             creating={creating}
             title="Create Timesheet Draft"
             submitText="Save as Draft"
-          />
-        )}
-
-        {editingTimesheet && (
-          <TimesheetForm
-            projects={projects}
-            activities={activities}
-            editingTimesheet={editingTimesheet}
-            onProjectChange={loadActivities}
-            onSubmit={handleEditSubmit}
-            onCancel={() => setEditingTimesheet(null)}
-            creating={false}
-            title="Edit Timesheet Draft"
-            submitText="Update Draft"
           />
         )}
       </div>
