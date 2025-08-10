@@ -23,36 +23,66 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleInitialized, setGoogleInitialized] = useState(false);
 
   // Initialize Google OAuth
   useEffect(() => {
-    // Load Google OAuth script
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
+    const initializeGoogle = () => {
+      // Load Google OAuth script
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      
+      script.onload = () => {
+        if (window.google) {
+          try {
+            window.google.accounts.id.initialize({
+              client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
+              callback: handleGoogleLogin,
+              auto_select: false,
+              cancel_on_tap_outside: true,
+              use_fedcm_for_prompt: false, // Disable FedCM to avoid the error
+            });
+            setGoogleInitialized(true);
+            console.log('Google Sign-In initialized successfully');
+          } catch (error) {
+            console.error('Error initializing Google Sign-In:', error);
+            setError('Failed to initialize Google Sign-In');
+          }
+        }
+      };
 
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
-          callback: handleGoogleLogin,
-          auto_select: false,
-        });
-      }
+      script.onerror = () => {
+        console.error('Failed to load Google Sign-In script');
+        setError('Failed to load Google Sign-In');
+      };
+
+      document.head.appendChild(script);
+
+      return () => {
+        try {
+          document.head.removeChild(script);
+        } catch (e) {
+          // Script already removed
+        }
+      };
     };
 
-    return () => {
-      document.head.removeChild(script);
-    };
+    const cleanup = initializeGoogle();
+    return cleanup;
   }, []);
 
   const handleGoogleLogin = async (response: any) => {
+    console.log('Google login response:', response);
     setGoogleLoading(true);
     setError('');
 
     try {
+      if (!response.credential) {
+        throw new Error('No credential received from Google');
+      }
+
       const res = await fetch('http://localhost:8000/api/auth/google-login/', {
         method: 'POST',
         headers: {
@@ -84,8 +114,35 @@ export default function LoginPage() {
   };
 
   const handleGoogleButtonClick = () => {
-    if (window.google) {
-      window.google.accounts.id.prompt();
+    if (!googleInitialized) {
+      setError('Google Sign-In is still loading. Please wait...');
+      return;
+    }
+
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      try {
+        // Clear any previous errors
+        setError('');
+        
+        // Alternative method - render the button directly
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'continue_with'
+          }
+        );
+        
+        // Or use prompt method
+        // window.google.accounts.id.prompt();
+      } catch (error) {
+        console.error('Error triggering Google Sign-In:', error);
+        setError('Error starting Google Sign-In. Please refresh and try again.');
+      }
+    } else {
+      setError('Google Sign-In not available. Please refresh the page.');
     }
   };
 
@@ -143,15 +200,23 @@ export default function LoginPage() {
         )}
 
         <div className="google-signin-section">
+          {/* Hidden div for Google button rendering */}
+          <div id="google-signin-button" style={{ display: 'none' }}></div>
+          
           <button 
             className="google-button"
             onClick={handleGoogleButtonClick}
-            disabled={googleLoading}
+            disabled={googleLoading || !googleInitialized}
           >
             {googleLoading ? (
               <div className="loading">
                 <div className="spinner" style={{ borderTopColor: '#007aff' }}></div>
                 Signing in...
+              </div>
+            ) : !googleInitialized ? (
+              <div className="loading">
+                <div className="spinner" style={{ borderTopColor: '#007aff' }}></div>
+                Loading...
               </div>
             ) : (
               <>
