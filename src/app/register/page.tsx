@@ -1,12 +1,22 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../context/AuthContext';
 import '../auth.css';
+
+// Declare Google API types
+declare global {
+  interface Window {
+    google: any;
+    googleLoginCallback: (response: any) => void;
+  }
+}
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -18,6 +28,81 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Initialize Google OAuth
+  useEffect(() => {
+    // Load Google OAuth script
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+
+    script.onload = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
+          callback: handleGoogleLogin,
+          auto_select: false,
+        });
+
+        // Render the Google Sign-In button
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'signup_with',
+          }
+        );
+      }
+    };
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, []);
+
+  const handleGoogleLogin = async (response: any) => {
+    setGoogleLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/google-login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          token: response.credential
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Use AuthContext login method
+        login(data.user);
+        // Show success message if account was created
+        if (data.created) {
+          alert('Account created successfully with Google!');
+        }
+        // Redirect to timesheet page
+        router.push('/');
+      } else {
+        setError(data.error || data.details || 'Google registration failed');
+      }
+    } catch (err) {
+      console.error('Google registration error:', err);
+      setError('Network error during Google registration. Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -90,7 +175,7 @@ export default function RegisterPage() {
         }
       }
     } catch (err) {
-    console.error('Login error:', err);
+      console.error('Registration error:', err);
       setError('Network error. Please check if the backend server is running.');
     } finally {
       setLoading(false);
@@ -116,6 +201,25 @@ export default function RegisterPage() {
             {success}
           </div>
         )}
+
+        {/* Google Sign-In Button */}
+        <div className="google-signin-section">
+          <div 
+            id="google-signin-button"
+            style={{ marginBottom: '20px' }}
+          ></div>
+          {googleLoading && (
+            <div className="loading" style={{ marginBottom: '15px' }}>
+              <div className="spinner"></div>
+              Creating account with Google...
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-row">

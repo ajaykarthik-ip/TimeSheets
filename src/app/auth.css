@@ -228,7 +228,7 @@ body {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* gap: 10px; */
 }
 
 .form-group {
@@ -429,17 +429,53 @@ body {
   font-size: 11px;
 }
 
-@media (max-width: 480px) {
-  .auth-container {
-    padding: 15px;
-  }
-  
-  .auth-card {
-    /* max-width: 260px; */
-    padding: 16px;
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+/* Add this to your auth.css file */
+
+/* Remove autofill background and maintain your design */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px transparent inset !important;
+    -webkit-text-fill-color: inherit !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/* For Firefox */
+input:-moz-autofill {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/* Alternative approach - if you want to maintain your original input styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--input-background, #2a2a2a) inset !important;
+    -webkit-text-fill-color: var(--input-text, #ffffff) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Make sure your regular input styles are preserved */
+.auth-form input {
+    background-color: var(--input-background, #2a2a2a);
+    color: var(--input-text, #ffffff);
+    border: 1px solid #444;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s ease;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+/* If you're using CSS variables, define them */
+:root {
+    --input-background: #2a2a2a;
+    --input-text: #ffffff;
 }
