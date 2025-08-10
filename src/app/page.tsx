@@ -31,7 +31,7 @@ interface Project {
   name: string;
 }
 
-type ViewMode = 'week' | 'month';
+type ViewMode = 'day' | 'week' | 'month';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -47,12 +47,37 @@ export default function MainPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
+  const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
   const [submittingWeek, setSubmittingWeek] = useState(false);
 
   useEffect(() => {
     loadData();
   }, [currentDate, viewMode]);
+
+  // FIXED: Helper function to create date string in YYYY-MM-DD format
+  const formatDateToString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // FIXED: Helper function to parse date string back to Date object
+  const parseDateString = (dateStr: string): Date => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Helper function to format date for display
+  const formatDateForDisplay = (dateStr: string, options: Intl.DateTimeFormatOptions = {}): string => {
+    const date = parseDateString(dateStr);
+    return date.toLocaleDateString('en-GB', options);
+  };
+
+  // Get today's date as string
+  const getTodayDateString = () => {
+    return formatDateToString(new Date());
+  };
 
   const loadData = async () => {
     try {
@@ -89,84 +114,91 @@ export default function MainPage() {
     }
   };
 
+  // FIXED: Corrected date range calculation
   const getDateRange = () => {
     const date = new Date(currentDate);
     let dateFrom, dateTo;
 
-    if (viewMode === 'week') {
+    if (viewMode === 'day') {
+      dateFrom = dateTo = formatDateToString(date);
+    } else if (viewMode === 'week') {
+      // FIXED: Proper Monday-to-Sunday week calculation
+      const currentDay = date.getDay();
+      const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+      
       const monday = new Date(date);
-      monday.setDate(date.getDate() - date.getDay() + 1);
+      monday.setDate(date.getDate() - daysToMonday);
+      
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
       
-      dateFrom = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-      dateTo = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+      dateFrom = formatDateToString(monday);
+      dateTo = formatDateToString(sunday);
     } else {
       // Month view
       const year = date.getFullYear();
       const month = date.getMonth();
       
-      dateFrom = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-      const lastDay = new Date(year, month + 1, 0).getDate();
-      dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      dateFrom = formatDateToString(firstDay);
+      dateTo = formatDateToString(lastDay);
     }
 
     return { dateFrom, dateTo };
   };
 
-  const getDaysForView = () => {
-    if (viewMode === 'week') {
+  // FIXED: Corrected days calculation
+  const getDaysForView = (): string[] => {
+    if (viewMode === 'day') {
+      return [formatDateToString(currentDate)];
+    } else if (viewMode === 'week') {
       const { dateFrom } = getDateRange();
-      const [year, month, day] = dateFrom.split('-').map(Number);
-      const monday = new Date(year, month - 1, day);
+      const startDate = parseDateString(dateFrom);
       
       const days = [];
       for (let i = 0; i < 7; i++) {
-        const date = new Date(monday);
-        date.setDate(monday.getDate() + i);
-        days.push(date);
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        days.push(formatDateToString(date));
       }
       return days;
     } else {
-      // Month view - Get all days including prev/next month for calendar grid
+      // Month view
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
-      
-      // Get first day of month and what day of week it is
       const firstDay = new Date(year, month, 1);
-      const firstDayOfWeek = firstDay.getDay();
+      const lastDay = new Date(year, month + 1, 0);
       
-      // Start from Monday of the week containing the first day
-      const startDate = new Date(firstDay);
-      startDate.setDate(firstDay.getDate() - (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1));
-      
-      // Generate 42 days (6 weeks) for calendar grid
       const days = [];
-      for (let i = 0; i < 42; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
-        days.push(date);
+      for (let date = new Date(firstDay); date <= lastDay; date.setDate(date.getDate() + 1)) {
+        days.push(formatDateToString(date));
       }
       return days;
     }
   };
 
+  // Get week start date for current view
   const getWeekStartDate = () => {
     if (viewMode !== 'week') return null;
     const { dateFrom } = getDateRange();
     return dateFrom;
   };
 
+  // Get draft count for current week
   const getWeekDraftCount = () => {
     if (viewMode !== 'week') return 0;
     return timesheets.filter(ts => ts.status === 'draft').length;
   };
 
+  // Get submitted count for current week
   const getWeekSubmittedCount = () => {
     if (viewMode !== 'week') return 0;
     return timesheets.filter(ts => ts.status === 'submitted').length;
   };
 
+  // Submit entire week
   const submitWeek = async () => {
     const weekStartDate = getWeekStartDate();
     if (!weekStartDate) {
@@ -200,11 +232,13 @@ export default function MainPage() {
 
       if (res.ok) {
         showNotification(`Week submitted successfully! ${data.submitted_count} timesheets submitted.`);
-        loadData();
+        loadData(); // Reload to show updated status
       } else {
         if (data.can_force_submit) {
+          // Show warnings and ask if user wants to force submit
           const warningMsg = `Warnings found:\n${data.week_warnings?.join('\n') || ''}\n\nDo you want to submit anyway?`;
           if (confirm(warningMsg)) {
+            // Retry with force_submit
             const forceRes = await fetch(`${API_BASE}/timesheets/submit-week/`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -235,19 +269,20 @@ export default function MainPage() {
     }
   };
 
-  const getTimesheetsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+  const getTimesheetsForDate = (dateStr: string) => {
     return timesheets.filter(ts => ts.date === dateStr);
   };
 
-  const getDayTotal = (date: Date) => {
-    const dayTimesheets = getTimesheetsForDate(date);
+  const getDayTotal = (dateStr: string) => {
+    const dayTimesheets = getTimesheetsForDate(dateStr);
     return dayTimesheets.reduce((total, ts) => total + parseFloat(ts.hours_worked || '0'), 0);
   };
 
   const navigate = (direction: number) => {
     const newDate = new Date(currentDate);
-    if (viewMode === 'week') {
+    if (viewMode === 'day') {
+      newDate.setDate(newDate.getDate() + direction);
+    } else if (viewMode === 'week') {
       newDate.setDate(newDate.getDate() + (direction * 7));
     } else {
       newDate.setMonth(newDate.getMonth() + direction);
@@ -255,10 +290,21 @@ export default function MainPage() {
     setCurrentDate(newDate);
   };
 
+  // FIXED: Improved date header formatting
   const formatDateHeader = () => {
-    if (viewMode === 'week') {
+    if (viewMode === 'day') {
+      return currentDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } else if (viewMode === 'week') {
       const { dateFrom, dateTo } = getDateRange();
-      return `${new Date(dateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(dateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      const startDate = parseDateString(dateFrom);
+      const endDate = parseDateString(dateTo);
+      
+      return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     } else {
       return currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
     }
@@ -284,7 +330,23 @@ export default function MainPage() {
     setTimeout(() => { setSuccess(''); setError(''); }, 3000);
   };
 
-
+  const editTimesheet = async (id: number, data: any) => {
+    try {
+      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        showNotification('Timesheet updated successfully');
+        loadData();
+        setEditingTimesheet(null);
+      }
+    } catch (error) {
+      showNotification('Failed to update timesheet', 'error');
+    }
+  };
 
   const deleteTimesheet = async (id: number) => {
     if (!confirm('Delete this timesheet?')) return;
@@ -338,11 +400,17 @@ export default function MainPage() {
     }
   };
 
-
-
-  // Helper function to check if date is in current month
-  const isCurrentMonth = (date: Date) => {
-    return date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
+  const handleEditSubmit = (formData: FormData) => {
+    if (!editingTimesheet) return;
+    
+    const data = {
+      project: parseInt(formData.get('project') as string),
+      activity_type: formData.get('activity_type') as string,
+      date: formData.get('date') as string,
+      hours_worked: formData.get('hours_worked') as string,
+      description: formData.get('description') as string || ''
+    };
+    editTimesheet(editingTimesheet.id, data);
   };
 
   if (loading) {
@@ -358,10 +426,6 @@ export default function MainPage() {
     );
   }
 
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-  };
-
   const isAdmin = user.role === 'admin' || user.role === 'manager';
   const daysToShow = getDaysForView();
   const weekDraftCount = getWeekDraftCount();
@@ -375,7 +439,7 @@ export default function MainPage() {
         <div className="sheet-header">
           <ViewControls 
             viewMode={viewMode} 
-            onViewModeChange={handleViewModeChange} 
+            onViewModeChange={setViewMode} 
           />
           
           <div className="date-nav">
@@ -389,6 +453,7 @@ export default function MainPage() {
               + 
             </button>
             
+            {/* Weekly Submit Button - Only show in week view */}
             {viewMode === 'week' && (
               <button 
                 className="submit-week-btn" 
@@ -409,6 +474,7 @@ export default function MainPage() {
           </div>
         </div>
 
+        {/* Week Summary - Only show in week view */}
         {/* {viewMode === 'week' && (
           <div className="week-summary">
             <span className="summary-item">
@@ -431,111 +497,70 @@ export default function MainPage() {
         {error && <div className="notification error">{error}</div>}
         {success && <div className="notification success">{success}</div>}
 
-        {viewMode === 'week' ? (
-          <div className="weekly-calendar">
-            {daysToShow.map((date) => {
-              const dayTimesheets = getTimesheetsForDate(date);
-              const dayTotal = getDayTotal(date);
-              const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-              const dateNum = date.getDate();
-              
-              return (
-                <div key={date.toISOString()} className="day-row">
-                  <div className="day-header">
-                    <div className="day-info">
-                      <div className="day-name">{dayName}</div>
-                      <div className="day-date">{dateNum}</div>
-                    </div>
-                    <div className="day-total">{dayTotal}h</div>
+        <div className="weekly-calendar">
+          {daysToShow.map((dateStr) => {
+            const dayTimesheets = getTimesheetsForDate(dateStr);
+            const dayTotal = getDayTotal(dateStr);
+            
+            // FIXED: Proper date display
+            const displayDate = parseDateString(dateStr);
+            const dayName = displayDate.toLocaleDateString('en-GB', { 
+              weekday: 'long'
+            });
+            const monthDay = displayDate.toLocaleDateString('en-GB', { 
+              month: 'short', 
+              day: 'numeric',
+              ...(viewMode === 'month' && { year: 'numeric' })
+            });
+            
+            return (
+              <div key={dateStr} className="day-row">
+                <div className="day-header">
+                  <div className="day-info">
+                    <div className="day-name">{dayName}</div>
+                    <div className="day-date">{monthDay}</div>
+                    {/* Removed debug info - dates should now match */}
                   </div>
-                  <div className="day-entries">
-                    {dayTimesheets.map((timesheet) => (
-                      <div key={timesheet.id} className="timesheet-entry">
-                        <div className="entry-project">{timesheet.project_name}</div>
-                        <div className="entry-activity">{timesheet.activity_type}</div>
-                        <div className="entry-hours">{timesheet.hours_worked}h</div>
-                        <div className="entry-status">
-                          {timesheet.status === 'submitted' ? (
-                            <span className="submitted-status">
-                              <FontAwesomeIcon icon={faCheck} /> Submitted
-                            </span>
-                          ) : (
-                            <span className="draft-status">
-                              <FontAwesomeIcon icon={faPen} /> Draft
-                            </span>
-                          )}
-                        </div>
-                        <div className="entry-actions">
-                          {timesheet.status !== 'submitted' && (
+                  <div className="day-total">{dayTotal}h</div>
+                </div>
+                <div className="day-entries">
+                  {dayTimesheets.map((timesheet) => (
+                    <div key={timesheet.id} className="timesheet-entry">
+                      <div className="entry-project">{timesheet.project_name}</div>
+                      <div className="entry-activity">{timesheet.activity_type}</div>
+                      <div className="entry-hours">{timesheet.hours_worked}h</div>
+                      <div className="entry-status">
+                        {timesheet.status === 'submitted' ? (
+                          <span className="submitted-status">
+                            <FontAwesomeIcon icon={faCheck} /> Submitted
+                          </span>
+                        ) : (
+                          <span className="draft-status">
+                            {/* <FontAwesomeIcon icon={faPen} /> Draft */}
+                          </span>
+                        )}
+                      </div>
+                      {/* Show stored date for verification - should match display now */}
+                      <div className="entry-date-stored" style={{fontSize: '0.8em', color: '#666'}}>
+                        Date: {timesheet.date}
+                      </div>
+                      <div className="entry-actions">
+                        {timesheet.status !== 'submitted' && (
+                          <>
+
                             <button onClick={() => deleteTimesheet(timesheet.id)} title="Delete">
                               <FontAwesomeIcon icon={faTrash} />
                             </button>
-                          )}
-                        </div>
+                          </>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="monthly-calendar">
-            <div className="calendar-header">
-              <div className="weekday-header">Mon</div>
-              <div className="weekday-header">Tue</div>
-              <div className="weekday-header">Wed</div>
-              <div className="weekday-header">Thu</div>
-              <div className="weekday-header">Fri</div>
-              <div className="weekday-header">Sat</div>
-              <div className="weekday-header">Sun</div>
-            </div>
-            <div className="calendar-grid">
-              {daysToShow.map((date) => {
-                const dayTimesheets = getTimesheetsForDate(date);
-                const dayTotal = getDayTotal(date);
-                const isOtherMonth = !isCurrentMonth(date);
-                
-                function setEditingTimesheet(timesheet: Timesheet): void {
-                  throw new Error('Function not implemented.');
-                }
-
-                return (
-                  <div 
-                    key={date.toISOString()} 
-                    className={`calendar-day ${isOtherMonth ? 'other-month' : ''}`}
-                  >
-                    <div className="calendar-day-header">
-                      <span className="calendar-day-number">{date.getDate()}</span>
-                      {dayTotal > 0 && (
-                        <span className="calendar-day-total">{dayTotal}h</span>
-                      )}
-                    </div>
-                    <div className="calendar-day-entries">
-                      {dayTimesheets.slice(0, 2).map((timesheet) => (
-                        <div 
-                          key={timesheet.id} 
-                          className={`calendar-entry ${timesheet.status === 'submitted' ? 'submitted' : 'draft'}`}
-                          onClick={() => setEditingTimesheet(timesheet)}
-                          title={`${timesheet.project_name} - ${timesheet.activity_type} (${timesheet.hours_worked}h)`}
-                        >
-                          <span className="entry-text">
-                            {timesheet.project_name} ({timesheet.hours_worked}h)
-                          </span>
-                        </div>
-                      ))}
-                      {dayTimesheets.length > 2 && (
-                        <div className="more-entries">
-                          +{dayTimesheets.length - 2} more
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
 
         {showForm && (
           <TimesheetForm
@@ -547,6 +572,20 @@ export default function MainPage() {
             creating={creating}
             title="Create Timesheet Draft"
             submitText="Save as Draft"
+          />
+        )}
+
+        {editingTimesheet && (
+          <TimesheetForm
+            projects={projects}
+            activities={activities}
+            editingTimesheet={editingTimesheet}
+            onProjectChange={loadActivities}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setEditingTimesheet(null)}
+            creating={false}
+            title="Edit Timesheet Draft"
+            submitText="Update Draft"
           />
         )}
       </div>
