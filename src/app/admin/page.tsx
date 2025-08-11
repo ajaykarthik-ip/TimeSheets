@@ -211,13 +211,8 @@ export default function AdminTimesheets() {
       )}
 
       {/* Filters */}
-      <div style={{ 
-        background: '#f9f9f9', 
-        padding: '20px', 
-        borderRadius: '5px', 
-        marginBottom: '20px' 
-      }}>
-        <h3 style={{ marginTop: 0 }}>Select Project and Date Range</h3>
+      <div>
+        <h3 >Select Project and Date Range</h3>
         
         <div className="form-row">
           <div className="form-group">
@@ -370,7 +365,7 @@ export default function AdminTimesheets() {
           backgroundColor: '#f8f9fa',
           borderRadius: '8px'
         }}>
-          <h3 style={{ marginBottom: '10px', color: '#666' }}>Select a Project</h3>
+          <h3>Select a Project</h3>
           <p>Choose a project from the dropdown above to view the timesheet summary.</p>
         </div>
       )}

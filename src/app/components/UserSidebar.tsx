@@ -18,7 +18,7 @@ export default function UserSidebar({ user, isAdmin }: UserSidebarProps) {
     <div className="sidebar">
       <div className="sidebar-content">
         <div>
-          <h3>Mobiux - Timesheet</h3>
+          <h2>Mobiux - Timesheet</h2>
           <div className="user-info">
             <p><strong>Name:</strong> {user.employee_name}</p>
             <p><strong>ID:</strong> {user.employee_id}</p>

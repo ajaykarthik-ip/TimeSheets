@@ -574,12 +574,12 @@ export default function MainPage() {
                           <FontAwesomeIcon icon={faCheck} /> Submitted
                         </span>
                       ) : (
-                        <span className="draft-status">
+                        <span className="draft">
                           {/* <FontAwesomeIcon icon={faPen} /> Draft */}
                         </span>
                       )}
                     </div>
-                    <div className="entry-date-stored" style={{fontSize: '0.8em', color: '#666'}}>
+                    <div className="entry-date-stored">
                       Date: {timesheet.date}
                     </div>
                     <div className="entry-actions">
@@ -637,7 +637,7 @@ export default function MainPage() {
 
           <div className="header-actions">
             <button className="add-btn" onClick={() => setShowForm(true)}>
-              + 
+              +
             </button>
             
             {/* Weekly Submit Button - Only show in week view */}
@@ -677,20 +677,6 @@ export default function MainPage() {
             creating={creating}
             title="Create Timesheet Draft"
             submitText="Save as Draft"
-          />
-        )}
-
-        {editingTimesheet && (
-          <TimesheetForm
-            projects={projects}
-            activities={activities}
-            editingTimesheet={editingTimesheet}
-            onProjectChange={loadActivities}
-            onSubmit={handleEditSubmit}
-            onCancel={() => setEditingTimesheet(null)}
-            creating={false}
-            title="Edit Timesheet Draft"
-            submitText="Update Draft"
           />
         )}
       </div>

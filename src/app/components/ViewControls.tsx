@@ -11,12 +11,6 @@ export default function ViewControls({ viewMode, onViewModeChange }: ViewControl
   return (
     <div className="view-controls">
       <button 
-        className={viewMode === 'day' ? 'active' : ''}
-        onClick={() => onViewModeChange('day')}
-      >
-        Day
-      </button>
-      <button 
         className={viewMode === 'week' ? 'active' : ''}
         onClick={() => onViewModeChange('week')}
       >
