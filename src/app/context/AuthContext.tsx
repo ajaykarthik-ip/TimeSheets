@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 interface User {
   id: number;
@@ -15,165 +15,82 @@ interface AuthContextType {
   user: User | null;
   login: (userData: User) => void;
   logout: () => void;
-  isAuthenticated: boolean;
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Pages that don't require authentication
-const PUBLIC_ROUTES = ['/login', '/register'];
-
-// Get API base URL from environment
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+
+  // Check if user is already logged in on app start
   useEffect(() => {
     const checkAuth = async () => {
-      console.log('🔍 AuthContext: Starting auth check...');
-      console.log('📍 Current pathname:', pathname);
-      console.log('🍪 Current cookies:', document.cookie);
-      
       try {
-        // Check if user is stored in localStorage
-        const storedUser = localStorage.getItem('user');
-        console.log('💾 Stored user:', storedUser ? 'Found' : 'None');
+        console.log('🔍 AuthContext: Checking authentication...');
+        const response = await fetch(`${API_BASE}/auth/profile/`, {
+          credentials: 'include'
+        });
         
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          console.log('👤 Stored user data:', userData);
-          
-          try {
-            // Verify with backend that session is still valid
-            console.log('🔗 Verifying session with backend...');
-            const response = await fetch(`${API_BASE}/auth/profile/`, {
-              credentials: 'include', // ✅ CRITICAL: Include cookies
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            });
-
-            console.log('📡 Profile API response status:', response.status);
-            console.log('📡 Profile API response headers:', response.headers);
-            
-            if (response.ok) {
-              const profileData = await response.json();
-              console.log('✅ Session valid, profile data:', profileData);
-              setUser(userData);
-            } else {
-              console.log('❌ Session expired, clearing stored user');
-              // Session expired, clear stored user
-              localStorage.removeItem('user');
-              if (!PUBLIC_ROUTES.includes(pathname)) {
-                console.log('🔄 Redirecting to login...');
-                router.push('/login');
-              }
-            }
-          } catch (fetchError) {
-            console.log('⚠️ Backend unreachable:', fetchError);
-            console.log('🔄 Keeping stored user for now');
-            // Backend is unreachable (deployment, network issues, etc.)
-            // Keep the stored user when backend is temporarily unavailable
-            setUser(userData);
-          }
-        } else if (!PUBLIC_ROUTES.includes(pathname)) {
-          console.log('🚫 No user and trying to access protected route');
-          // No user and trying to access protected route
-          router.push('/login');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ AuthContext: User is authenticated:', data.user);
+          setUser(data.user);
+        } else {
+          console.log('❌ AuthContext: User not authenticated');
         }
       } catch (error) {
-        console.error('💥 Auth check failed:', error);
-        // Only clear user data if we're sure there's an authentication issue
-        if (!PUBLIC_ROUTES.includes(pathname)) {
-          router.push('/login');
-        }
+        console.log('❌ AuthContext: Auth check failed:', error);
       } finally {
-        console.log('✅ Auth check complete');
         setLoading(false);
       }
     };
 
     checkAuth();
-  }, [pathname, router]);
+  }, [API_BASE]);
 
   const login = (userData: User) => {
-    console.log('🔐 AuthContext: Logging in user:', userData);
+    console.log('✅ AuthContext: User logged in:', userData);
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    console.log('💾 User data saved to localStorage');
   };
 
   const logout = async () => {
-    console.log('🚪 AuthContext: Logging out...');
     try {
-      const response = await fetch(`${API_BASE}/auth/logout/`, {
+      console.log('🚪 AuthContext: Logging out...');
+      await fetch(`${API_BASE}/auth/logout/`, {
         method: 'POST',
-        credentials: 'include', // ✅ CRITICAL: Include cookies
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include'
       });
-      console.log('📡 Logout API response status:', response.status);
+      console.log('✅ AuthContext: Logout successful');
     } catch (error) {
-      console.error('⚠️ Logout error:', error);
-      // Continue with logout even if backend request fails
+      console.error('❌ AuthContext: Logout error:', error);
+    } finally {
+      setUser(null);
+      router.push('/login');
     }
-    
-    setUser(null);
-    localStorage.removeItem('user');
-    console.log('✅ User logged out, redirecting to login');
-    router.push('/login');
   };
-
-  // Show loading screen while checking authentication
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid #f3f3f3',
-          borderTop: '4px solid #667eea',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }}></div>
-        <p>Loading...</p>
-        <style jsx>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
 
   const value = {
     user,
     login,
     logout,
-    isAuthenticated: !!user,
-    loading,
+    loading
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

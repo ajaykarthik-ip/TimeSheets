@@ -1,17 +1,16 @@
-import './globals.css'
-import { ReactNode } from 'react'
-import { AuthProvider } from './context/AuthContext'
+import type { Metadata } from "next";
+import { AuthProvider } from './context/AuthContext';
 
-export const metadata = {
-  title: 'Timesheet Management System',
-  description: 'A secure timesheet application',
-}
+export const metadata: Metadata = {
+  title: "Mobiux Timesheets",
+  description: "Professional timesheet management system",
+};
 
-interface RootLayoutProps {
-  children: ReactNode
-}
-
-export default function RootLayout({ children }: RootLayoutProps) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
@@ -20,5 +19,5 @@ export default function RootLayout({ children }: RootLayoutProps) {
         </AuthProvider>
       </body>
     </html>
-  )
+  );
 }
