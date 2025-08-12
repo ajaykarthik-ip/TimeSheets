@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Types
 interface Project {
@@ -38,7 +38,7 @@ export default function AdminProjects() {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ||'http://localhost:8000/api';
 
   // Fetch projects
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/projects/`, {
         credentials: 'include'
@@ -50,10 +50,10 @@ export default function AdminProjects() {
       setError('Failed to load projects');
       console.error(err);
     }
-  };
+  }, [API_BASE]);
 
   // Fetch choices
-  const fetchChoices = async () => {
+  const fetchChoices = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/projects/choices/`, {
         credentials: 'include'
@@ -64,7 +64,7 @@ export default function AdminProjects() {
     } catch (err) {
       console.error('Failed to load choices:', err);
     }
-  };
+  }, [API_BASE]);
 
   // Load initial data
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function AdminProjects() {
       setLoading(false);
     };
     loadData();
-  }, []);
+  }, [fetchProjects, fetchChoices]);
 
   // Filter projects
   const filteredProjects = projects.filter(project => 
@@ -121,8 +121,12 @@ export default function AdminProjects() {
       // Refresh data
       await fetchProjects();
       resetForm();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     }
   };
 
@@ -168,8 +172,12 @@ export default function AdminProjects() {
       }
 
       await fetchProjects();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to delete project');
+      }
     }
   };
 

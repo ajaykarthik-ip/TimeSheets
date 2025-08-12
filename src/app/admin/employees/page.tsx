@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Types
 interface Employee {
@@ -36,6 +36,19 @@ interface EmployeeChoices {
   departments: { [key: string]: string };
 }
 
+interface SubmitData {
+  employee_id?: string;
+  username?: string;
+  password?: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+  department: string;
+  hire_date: string;
+  is_active: boolean;
+}
+
 // Initial form state
 const initialFormData = {
   employee_id: '',
@@ -52,7 +65,6 @@ const initialFormData = {
 
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [managers, setManagers] = useState<Manager[]>([]);
   const [choices, setChoices] = useState<EmployeeChoices>({ roles: {}, departments: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,7 +77,7 @@ export default function AdminEmployees() {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ||'http://localhost:8000/api';
 
   // Fetch employees
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/employees/`, {
         credentials: 'include'
@@ -77,24 +89,25 @@ export default function AdminEmployees() {
       setError('Failed to load employees');
       console.error(err);
     }
-  };
+  }, [API_BASE]);
 
-  // Fetch managers
-  const fetchManagers = async () => {
+  // Fetch managers (keeping for future use)
+  const fetchManagers = useCallback(async (): Promise<Manager[]> => {
     try {
       const response = await fetch(`${API_BASE}/employees/managers/`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch managers');
       const data = await response.json();
-      setManagers(data.managers || []);
+      return data.managers || [];
     } catch (err) {
       console.error('Failed to load managers:', err);
+      return [];
     }
-  };
+  }, [API_BASE]);
 
   // Fetch choices
-  const fetchChoices = async () => {
+  const fetchChoices = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/employees/choices/`, {
         credentials: 'include'
@@ -105,7 +118,7 @@ export default function AdminEmployees() {
     } catch (err) {
       console.error('Failed to load choices:', err);
     }
-  };
+  }, [API_BASE]);
 
   // Load initial data
   useEffect(() => {
@@ -113,13 +126,13 @@ export default function AdminEmployees() {
       setLoading(true);
       await Promise.all([
         fetchEmployees(),
-        fetchManagers(),
+        fetchManagers(), // Keep this call for future use
         fetchChoices()
       ]);
       setLoading(false);
     };
     loadData();
-  }, []);
+  }, [fetchEmployees, fetchManagers, fetchChoices]);
 
   // Filter employees
   const filteredEmployees = employees.filter(emp => 
@@ -135,7 +148,7 @@ export default function AdminEmployees() {
     setError('');
 
     try {
-      const submitData: any = {
+      const submitData: SubmitData = {
         ...formData,
         is_active: formData.is_active
       };
@@ -174,10 +187,15 @@ export default function AdminEmployees() {
       }
 
       await fetchEmployees();
+      // Refresh managers if needed in the future
       await fetchManagers();
       resetForm();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     }
   };
 
@@ -240,8 +258,12 @@ export default function AdminEmployees() {
 
       await fetchEmployees();
       await fetchManagers();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to delete employee');
+      }
     }
   };
 

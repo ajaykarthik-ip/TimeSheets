@@ -38,7 +38,7 @@ export default function TimesheetForm({
   title,
   submitText
 }: TimesheetFormProps) {
-  const [creating, setCreating] = useState(false);
+  const [creating] = useState(false);
 
   // Helper function to format date for input (avoids timezone issues)
   const formatDateForInput = (dateString: string) => {

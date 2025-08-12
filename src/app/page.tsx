@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './page.css';
 import UserSidebar from './components/UserSidebar';
 import ViewControls from './components/ViewControls';
 import TimesheetForm from './components/TimesheetForm';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPen, faTrash, faCheck, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faTrash, faCheck } from '@fortawesome/free-solid-svg-icons';
 
 interface User {
   employee_id: string;
@@ -29,6 +29,15 @@ interface Timesheet {
 interface Project {
   id: number;
   name: string;
+}
+
+interface TimesheetFormData {
+  employee_id: string;
+  project: number;
+  activity_type: string;
+  date: string;
+  hours_worked: string;
+  description: string;
 }
 
 type ViewMode = 'day' | 'week' | 'month';
@@ -83,10 +92,6 @@ export default function MainPage() {
   const [editingTimesheet, setEditingTimesheet] = useState<Timesheet | null>(null);
   const [submittingWeek, setSubmittingWeek] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [currentDate, viewMode]);
-
   // Helper function to create date string in YYYY-MM-DD format
   const formatDateToString = (date: Date): string => {
     const year = date.getFullYear();
@@ -101,19 +106,63 @@ export default function MainPage() {
     return new Date(year, month - 1, day);
   };
 
-  // Helper function to format date for display
-  const formatDateForDisplay = (dateStr: string, options: Intl.DateTimeFormatOptions = {}): string => {
-    const date = parseDateString(dateStr);
-    return date.toLocaleDateString('en-GB', options);
-  };
-
   // Get today's date as string
   const getTodayDateString = () => {
     return formatDateToString(new Date());
   };
 
+  // Corrected date range calculation
+  const getDateRange = useCallback(() => {
+    const date = new Date(currentDate);
+    let dateFrom, dateTo;
+
+    if (viewMode === 'day') {
+      dateFrom = dateTo = formatDateToString(date);
+    } else if (viewMode === 'week') {
+      // Proper Monday-to-Sunday week calculation
+      const currentDay = date.getDay();
+      const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+      
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - daysToMonday);
+      
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      
+      dateFrom = formatDateToString(monday);
+      dateTo = formatDateToString(sunday);
+    } else {
+      // Month view - extend to cover full calendar grid (6 weeks)
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      
+      // First day of the month
+      const firstDayOfMonth = new Date(year, month, 1);
+      
+      // Last day of the month
+      const lastDayOfMonth = new Date(year, month + 1, 0);
+      
+      // Find the Monday of the week containing the first day
+      const firstDayWeekday = firstDayOfMonth.getDay();
+      const daysToFirstMonday = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
+      const calendarStart = new Date(firstDayOfMonth);
+      calendarStart.setDate(firstDayOfMonth.getDate() - daysToFirstMonday);
+      
+      // Find the Sunday of the week containing the last day
+      const lastDayWeekday = lastDayOfMonth.getDay();
+      const daysToLastSunday = lastDayWeekday === 0 ? 0 : 7 - lastDayWeekday;
+      const calendarEnd = new Date(lastDayOfMonth);
+      calendarEnd.setDate(lastDayOfMonth.getDate() + daysToLastSunday);
+      
+      dateFrom = formatDateToString(calendarStart);
+      dateTo = formatDateToString(calendarEnd);
+    }
+
+    return { dateFrom, dateTo };
+  }, [currentDate, viewMode]);
+
   // ✅ FIXED: Enhanced loadData with proper error handling and logging
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     console.log('📊 MainPage: Starting data load...');
     console.log('🍪 MainPage: Current cookies:', document.cookie);
     
@@ -185,57 +234,11 @@ export default function MainPage() {
       console.log('✅ MainPage: Data load complete');
       setLoading(false);
     }
-  };
+  }, [user, getDateRange]);
 
-  // Corrected date range calculation
-  const getDateRange = () => {
-    const date = new Date(currentDate);
-    let dateFrom, dateTo;
-
-    if (viewMode === 'day') {
-      dateFrom = dateTo = formatDateToString(date);
-    } else if (viewMode === 'week') {
-      // Proper Monday-to-Sunday week calculation
-      const currentDay = date.getDay();
-      const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
-      
-      const monday = new Date(date);
-      monday.setDate(date.getDate() - daysToMonday);
-      
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      
-      dateFrom = formatDateToString(monday);
-      dateTo = formatDateToString(sunday);
-    } else {
-      // Month view - extend to cover full calendar grid (6 weeks)
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      
-      // First day of the month
-      const firstDayOfMonth = new Date(year, month, 1);
-      
-      // Last day of the month
-      const lastDayOfMonth = new Date(year, month + 1, 0);
-      
-      // Find the Monday of the week containing the first day
-      const firstDayWeekday = firstDayOfMonth.getDay();
-      const daysToFirstMonday = firstDayWeekday === 0 ? 6 : firstDayWeekday - 1;
-      const calendarStart = new Date(firstDayOfMonth);
-      calendarStart.setDate(firstDayOfMonth.getDate() - daysToFirstMonday);
-      
-      // Find the Sunday of the week containing the last day
-      const lastDayWeekday = lastDayOfMonth.getDay();
-      const daysToLastSunday = lastDayWeekday === 0 ? 0 : 7 - lastDayWeekday;
-      const calendarEnd = new Date(lastDayOfMonth);
-      calendarEnd.setDate(lastDayOfMonth.getDate() + daysToLastSunday);
-      
-      dateFrom = formatDateToString(calendarStart);
-      dateTo = formatDateToString(calendarEnd);
-    }
-
-    return { dateFrom, dateTo };
-  };
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Get calendar grid for month view (6 weeks x 7 days = 42 days)
   const getMonthCalendarGrid = (): Array<Array<{ date: string; isCurrentMonth: boolean; isToday: boolean }>> => {
@@ -313,12 +316,6 @@ export default function MainPage() {
   const getWeekDraftCount = () => {
     if (viewMode !== 'week') return 0;
     return timesheets.filter(ts => ts.status === 'draft').length;
-  };
-
-  // Get submitted count for current week
-  const getWeekSubmittedCount = () => {
-    if (viewMode !== 'week') return 0;
-    return timesheets.filter(ts => ts.status === 'submitted').length;
   };
 
   // ✅ FIXED: Submit entire week with proper API call
@@ -458,7 +455,7 @@ export default function MainPage() {
   };
 
   // ✅ FIXED: Edit timesheet with proper API call
-  const editTimesheet = async (id: number, data: any) => {
+  const editTimesheet = async (id: number, data: TimesheetFormData) => {
     try {
       console.log('✏️ Editing timesheet:', id, data);
       const res = await makeAPICall(`${API_BASE}/timesheets/${id}/`, {
@@ -515,7 +512,7 @@ export default function MainPage() {
     setCreating(true);
     
     try {
-      const data = {
+      const data: TimesheetFormData = {
         employee_id: user.employee_id,
         project: parseInt(formData.get('project') as string),
         activity_type: formData.get('activity_type') as string,
@@ -548,18 +545,6 @@ export default function MainPage() {
     }
   };
 
-  const handleEditSubmit = (formData: FormData) => {
-    if (!editingTimesheet) return;
-    
-    const data = {
-      project: parseInt(formData.get('project') as string),
-      activity_type: formData.get('activity_type') as string,
-      date: formData.get('date') as string,
-      hours_worked: formData.get('hours_worked') as string,
-      description: formData.get('description') as string || ''
-    };
-    editTimesheet(editingTimesheet.id, data);
-  };
 
   // Render monthly calendar view like Google Calendar
   const renderMonthlyView = () => {
@@ -718,7 +703,6 @@ export default function MainPage() {
   
   const isAdmin = user.role === 'admin' || user.role === 'manager';
   const weekDraftCount = getWeekDraftCount();
-  const weekSubmittedCount = getWeekSubmittedCount();
 
   return (
     <div className="app">

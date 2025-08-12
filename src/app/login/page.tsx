@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -9,11 +9,38 @@ import '../auth.css';
 // Get API base URL from environment
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
+// Define Google API types
+interface GoogleCredentialResponse {
+  credential: string;
+}
+
+interface GoogleInitializeConfig {
+  client_id: string;
+  callback: (response: GoogleCredentialResponse) => void;
+  auto_select: boolean;
+}
+
+interface GoogleButtonConfig {
+  theme: string;
+  size: string;
+  width: string;
+  text: string;
+}
+
+interface GoogleAccounts {
+  id: {
+    initialize: (config: GoogleInitializeConfig) => void;
+    renderButton: (element: HTMLElement | null, config: GoogleButtonConfig) => void;
+  };
+}
+
 // Declare Google API types
 declare global {
   interface Window {
-    google: any;
-    googleLoginCallback: (response: any) => void;
+    google: {
+      accounts: GoogleAccounts;
+    };
+    googleLoginCallback: (response: GoogleCredentialResponse) => void;
   }
 }
 
@@ -28,42 +55,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Initialize Google OAuth
-  useEffect(() => {
-    // Load Google OAuth script
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
-          callback: handleGoogleLogin,
-          auto_select: false,
-        });
-
-        // Render the Google Sign-In button
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-button'),
-          {
-            theme: 'outline',
-            size: 'large',
-            width: '100%',
-            text: 'signin_with',
-          }
-        );
-      }
-    };
-
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, []);
-
-  const handleGoogleLogin = async (response: any) => {
+  const handleGoogleLogin = useCallback(async (response: GoogleCredentialResponse) => {
     setGoogleLoading(true);
     setError('');
 
@@ -99,7 +91,42 @@ export default function LoginPage() {
     } finally {
       setGoogleLoading(false);
     }
-  };
+  }, [login, router]);
+
+  // Initialize Google OAuth
+  useEffect(() => {
+    // Load Google OAuth script
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+
+    script.onload = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
+          callback: handleGoogleLogin,
+          auto_select: false,
+        });
+
+        // Render the Google Sign-In button
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'signin_with',
+          }
+        );
+      }
+    };
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [handleGoogleLogin]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -236,7 +263,7 @@ export default function LoginPage() {
 
         <div className="auth-links">
           <p>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/register">Create one here</Link>
           </p>
         </div>

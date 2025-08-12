@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Types
 interface Project {
@@ -8,16 +8,11 @@ interface Project {
   name: string;
 }
 
-interface Employee {
-  employee_id: string;
-  full_name: string;
-}
-
-interface TimesheetData {
+interface TimesheetEntry {
   employee_id: string;
   employee_name: string;
   activity_type: string;
-  total_hours: number;
+  hours_worked: string;
 }
 
 interface ProjectTimesheetSummary {
@@ -64,13 +59,14 @@ export default function AdminTimesheets() {
         month: '2-digit',
         year: 'numeric'
       });
-    } catch (error) {
+    } catch (err) {
+      console.error('Date formatting error:', err);
       return dateString;
     }
   };
 
   // Fetch projects for dropdown
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/projects/active/`, {
         credentials: 'include'
@@ -83,10 +79,10 @@ export default function AdminTimesheets() {
       console.error('Failed to fetch projects:', err);
       setError('Failed to load projects');
     }
-  };
+  }, [API_BASE]);
 
   // Fetch timesheet data for selected project
-  const fetchProjectTimesheets = async () => {
+  const fetchProjectTimesheets = useCallback(async () => {
     if (!selectedProject || !dateFrom || !dateTo) return;
 
     try {
@@ -119,10 +115,10 @@ export default function AdminTimesheets() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedProject, dateFrom, dateTo, API_BASE]);
 
   // Process raw timesheet data into summary format
-  const processTimesheetData = (timesheets: any[]): ProjectTimesheetSummary => {
+  const processTimesheetData = (timesheets: TimesheetEntry[]): ProjectTimesheetSummary => {
     const employees: { [key: string]: string } = {};
     const activities: Set<string> = new Set();
     const data: { [employeeId: string]: { [activity: string]: number } } = {};
@@ -174,7 +170,7 @@ export default function AdminTimesheets() {
   // Load projects on component mount
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [fetchProjects]);
 
   // Fetch project data when project, date range changes
   useEffect(() => {
@@ -183,7 +179,7 @@ export default function AdminTimesheets() {
     } else {
       setProjectData(null);
     }
-  }, [selectedProject, dateFrom, dateTo]);
+  }, [selectedProject, dateFrom, dateTo, fetchProjectTimesheets]);
 
   // Get selected project name
   const getSelectedProjectName = () => {
