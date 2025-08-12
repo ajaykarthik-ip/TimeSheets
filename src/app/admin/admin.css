@@ -437,6 +437,34 @@ body::before {
   font-size: 11px;
 }
 
+/* Dropdown options styling */
+.form-group select option {
+  background: rgba(20, 20, 30, 0.95) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  padding: 8px 12px;
+  border: none;
+}
+
+/* Hover state for dropdown options */
+.form-group select option:hover {
+  background: rgba(0, 122, 255, 0.3) !important;
+  color: white !important;
+}
+
+/* Selected option styling */
+.form-group select option:checked {
+  background: rgba(0, 122, 255, 0.5) !important;
+  color: white !important;
+}
+
+/* Enhanced focus state for dropdown */
+.form-group select:focus {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.4) !important;
+  border-color: rgba(0, 122, 255, 0.6) !important;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
