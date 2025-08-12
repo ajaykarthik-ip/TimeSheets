@@ -44,86 +44,86 @@ type ViewMode = 'day' | 'week' | 'month';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
-// 🧪 CORS TEST COMPONENT - ADD THIS
-function CORSTestComponent() {
-  const [testResult, setTestResult] = useState('Not tested yet');
-  const [loading, setLoading] = useState(false);
+// // 🧪 CORS TEST COMPONENT - ADD THIS
+// function CORSTestComponent() {
+//   const [testResult, setTestResult] = useState('Not tested yet');
+//   const [loading, setLoading] = useState(false);
 
-  const testCORS = async () => {
-    setLoading(true);
-    setTestResult('Testing...');
+//   const testCORS = async () => {
+//     setLoading(true);
+//     setTestResult('Testing...');
 
-    try {
-      const response = await fetch('https://timesheets-backend-sdmk.onrender.com/api/auth/cors-test/', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ test: 'frontend-cors-test', timestamp: new Date().toISOString() })
-      });
+//     try {
+//       const response = await fetch('https://timesheets-backend-sdmk.onrender.com/api/auth/cors-test/', {
+//         method: 'POST',
+//         credentials: 'include',
+//         headers: {
+//           'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify({ test: 'frontend-cors-test', timestamp: new Date().toISOString() })
+//       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setTestResult(`✅ SUCCESS: ${JSON.stringify(data, null, 2)}`);
-        console.log('✅ CORS Test Success:', data);
-      } else {
-        setTestResult(`❌ HTTP ERROR: ${response.status} ${response.statusText}`);
-        console.error('❌ CORS Test HTTP Error:', response.status);
-      }
-    } catch (error) {
-      setTestResult(`❌ NETWORK ERROR: ${error}`);
-      console.error('❌ CORS Test Network Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+//       if (response.ok) {
+//         const data = await response.json();
+//         setTestResult(`✅ SUCCESS: ${JSON.stringify(data, null, 2)}`);
+//         console.log('✅ CORS Test Success:', data);
+//       } else {
+//         setTestResult(`❌ HTTP ERROR: ${response.status} ${response.statusText}`);
+//         console.error('❌ CORS Test HTTP Error:', response.status);
+//       }
+//     } catch (error) {
+//       setTestResult(`❌ NETWORK ERROR: ${error}`);
+//       console.error('❌ CORS Test Network Error:', error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
 
-  return (
-    <div style={{
-      position: 'fixed',
-      top: '10px',
-      right: '10px',
-      background: 'white',
-      border: '2px solid #333',
-      borderRadius: '8px',
-      padding: '15px',
-      maxWidth: '400px',
-      maxHeight: '300px',
-      overflow: 'auto',
-      zIndex: 9999,
-      fontSize: '12px',
-      fontFamily: 'monospace'
-    }}>
-      <h4>CORS Test</h4>
-      <button 
-        onClick={testCORS} 
-        disabled={loading}
-        style={{
-          background: '#007bff',
-          color: 'white',
-          border: 'none',
-          padding: '8px 16px',
-          borderRadius: '4px',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          marginBottom: '10px'
-        }}
-      >
-        {loading ? 'Testing...' : 'Test CORS'}
-      </button>
-      <pre style={{ 
-        whiteSpace: 'pre-wrap', 
-        wordBreak: 'break-word',
-        background: '#f5f5f5',
-        padding: '8px',
-        borderRadius: '4px',
-        margin: 0
-      }}>
-        {testResult}
-      </pre>
-    </div>
-  );
-}
+//   return (
+//     <div style={{
+//       position: 'fixed',
+//       top: '10px',
+//       right: '10px',
+//       background: 'white',
+//       border: '2px solid #333',
+//       borderRadius: '8px',
+//       padding: '15px',
+//       maxWidth: '400px',
+//       maxHeight: '300px',
+//       overflow: 'auto',
+//       zIndex: 9999,
+//       fontSize: '12px',
+//       fontFamily: 'monospace'
+//     }}>
+//       <h4>CORS Test</h4>
+//       <button 
+//         onClick={testCORS} 
+//         disabled={loading}
+//         style={{
+//           background: '#007bff',
+//           color: 'white',
+//           border: 'none',
+//           padding: '8px 16px',
+//           borderRadius: '4px',
+//           cursor: loading ? 'not-allowed' : 'pointer',
+//           marginBottom: '10px'
+//         }}
+//       >
+//         {loading ? 'Testing...' : 'Test CORS'}
+//       </button>
+//       <pre style={{ 
+//         whiteSpace: 'pre-wrap', 
+//         wordBreak: 'break-word',
+//         background: '#f5f5f5',
+//         padding: '8px',
+//         borderRadius: '4px',
+//         margin: 0
+//       }}>
+//         {testResult}
+//       </pre>
+//     </div>
+//   );
+// }
 
 // ✅ Helper function for consistent API calls with logging
 const makeAPICall = async (url: string, options: RequestInit = {}) => {
@@ -788,7 +788,7 @@ export default function MainPage() {
   return (
     <div className="app">
       {/* 🧪 ADD CORS TEST COMPONENT HERE - TEMPORARY */}
-      <CORSTestComponent />
+      {/* <CORSTestComponent /> */}
       
       <UserSidebar user={user} isAdmin={isAdmin} />
 
