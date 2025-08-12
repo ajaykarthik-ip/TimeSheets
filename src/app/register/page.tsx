@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import '../auth.css';
 
+// Get API base URL from environment
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+
 // Declare Google API types
 declare global {
   interface Window {
@@ -71,7 +74,7 @@ export default function RegisterPage() {
     setSuccess('');
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/google-login/', {
+      const res = await fetch(`${API_BASE}/auth/google-login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +137,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/auth/register/', {
+      const response = await fetch(`${API_BASE}/auth/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

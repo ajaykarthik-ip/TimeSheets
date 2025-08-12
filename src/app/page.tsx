@@ -33,7 +33,40 @@ interface Project {
 
 type ViewMode = 'day' | 'week' | 'month';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+
+// ✅ Helper function for consistent API calls with logging
+const makeAPICall = async (url: string, options: RequestInit = {}) => {
+  const defaultOptions: RequestInit = {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
+  const mergedOptions = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers,
+    },
+  };
+
+  console.log(`🔗 API Call: ${options.method || 'GET'} ${url}`);
+  console.log('🍪 Cookies being sent:', document.cookie);
+  
+  try {
+    const response = await fetch(url, mergedOptions);
+    console.log(`📡 API Response: ${response.status} for ${url}`);
+    console.log('📡 Response headers:', [...response.headers.entries()]);
+    
+    return response;
+  } catch (error) {
+    console.error(`💥 API Error for ${url}:`, error);
+    throw error;
+  }
+};
 
 export default function MainPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -54,7 +87,7 @@ export default function MainPage() {
     loadData();
   }, [currentDate, viewMode]);
 
-  // FIXED: Helper function to create date string in YYYY-MM-DD format
+  // Helper function to create date string in YYYY-MM-DD format
   const formatDateToString = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -62,7 +95,7 @@ export default function MainPage() {
     return `${year}-${month}-${day}`;
   };
 
-  // FIXED: Helper function to parse date string back to Date object
+  // Helper function to parse date string back to Date object
   const parseDateString = (dateStr: string): Date => {
     const [year, month, day] = dateStr.split('-').map(Number);
     return new Date(year, month - 1, day);
@@ -79,42 +112,82 @@ export default function MainPage() {
     return formatDateToString(new Date());
   };
 
+  // ✅ FIXED: Enhanced loadData with proper error handling and logging
   const loadData = async () => {
+    console.log('📊 MainPage: Starting data load...');
+    console.log('🍪 MainPage: Current cookies:', document.cookie);
+    
     try {
       if (!user) {
-        const userRes = await fetch(`${API_BASE}/timesheets/current-user/`, {
-          credentials: 'include'
-        });
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          setUser(userData);
+        console.log('👤 MainPage: Loading user data...');
+        
+        try {
+          const userRes = await makeAPICall(`${API_BASE}/timesheets/current-user/`);
+          
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            console.log('✅ MainPage: User data loaded:', userData);
+            setUser(userData);
+          } else {
+            console.log('❌ MainPage: Failed to load user data - Status:', userRes.status);
+            const errorText = await userRes.text();
+            console.log('❌ MainPage: User API error response:', errorText);
+          }
+        } catch (userError) {
+          console.error('💥 MainPage: User API call failed:', userError);
         }
 
-        const projectsRes = await fetch(`${API_BASE}/projects/active/`, {
-          credentials: 'include'
-        });
-        if (projectsRes.ok) {
-          const projectsData = await projectsRes.json();
-          setProjects(projectsData.projects || []);
+        console.log('🏗️ MainPage: Loading projects...');
+        
+        try {
+          const projectsRes = await makeAPICall(`${API_BASE}/projects/active/`);
+          
+          if (projectsRes.ok) {
+            const projectsData = await projectsRes.json();
+            console.log('✅ MainPage: Projects loaded:', projectsData);
+            setProjects(projectsData.projects || []);
+          } else {
+            console.log('❌ MainPage: Failed to load projects - Status:', projectsRes.status);
+            const errorText = await projectsRes.text();
+            console.log('❌ MainPage: Projects API error response:', errorText);
+          }
+        } catch (projectsError) {
+          console.error('💥 MainPage: Projects API call failed:', projectsError);
         }
       }
 
+      console.log('📅 MainPage: Loading timesheets...');
       const { dateFrom, dateTo } = getDateRange();
-      const timesheetRes = await fetch(`${API_BASE}/timesheets/my-timesheets/?date_from=${dateFrom}&date_to=${dateTo}`, {
-        credentials: 'include'
-      });
-      if (timesheetRes.ok) {
-        const timesheetData = await timesheetRes.json();
-        setTimesheets(timesheetData.timesheets || []);
+      console.log('📅 MainPage: Date range:', { dateFrom, dateTo });
+      
+      const timesheetUrl = `${API_BASE}/timesheets/my-timesheets/?date_from=${dateFrom}&date_to=${dateTo}`;
+      console.log('🔗 MainPage: Timesheet URL:', timesheetUrl);
+      
+      try {
+        const timesheetRes = await makeAPICall(timesheetUrl);
+        
+        if (timesheetRes.ok) {
+          const timesheetData = await timesheetRes.json();
+          console.log('✅ MainPage: Timesheets loaded:', timesheetData);
+          setTimesheets(timesheetData.timesheets || []);
+        } else {
+          console.log('❌ MainPage: Failed to load timesheets - Status:', timesheetRes.status);
+          const errorText = await timesheetRes.text();
+          console.log('❌ MainPage: Timesheets API error response:', errorText);
+        }
+      } catch (timesheetError) {
+        console.error('💥 MainPage: Timesheets API call failed:', timesheetError);
       }
+
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('💥 MainPage: Failed to load data:', error);
     } finally {
+      console.log('✅ MainPage: Data load complete');
       setLoading(false);
     }
   };
 
-  // FIXED: Corrected date range calculation
+  // Corrected date range calculation
   const getDateRange = () => {
     const date = new Date(currentDate);
     let dateFrom, dateTo;
@@ -122,7 +195,7 @@ export default function MainPage() {
     if (viewMode === 'day') {
       dateFrom = dateTo = formatDateToString(date);
     } else if (viewMode === 'week') {
-      // FIXED: Proper Monday-to-Sunday week calculation
+      // Proper Monday-to-Sunday week calculation
       const currentDay = date.getDay();
       const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
       
@@ -164,7 +237,7 @@ export default function MainPage() {
     return { dateFrom, dateTo };
   };
 
-  // NEW: Get calendar grid for month view (6 weeks x 7 days = 42 days)
+  // Get calendar grid for month view (6 weeks x 7 days = 42 days)
   const getMonthCalendarGrid = (): Array<Array<{ date: string; isCurrentMonth: boolean; isToday: boolean }>> => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -207,7 +280,7 @@ export default function MainPage() {
     return weeks;
   };
 
-  // FIXED: Corrected days calculation
+  // Corrected days calculation
   const getDaysForView = (): string[] => {
     if (viewMode === 'day') {
       return [formatDateToString(currentDate)];
@@ -248,7 +321,7 @@ export default function MainPage() {
     return timesheets.filter(ts => ts.status === 'submitted').length;
   };
 
-  // Submit entire week
+  // ✅ FIXED: Submit entire week with proper API call
   const submitWeek = async () => {
     const weekStartDate = getWeekStartDate();
     if (!weekStartDate) {
@@ -268,10 +341,8 @@ export default function MainPage() {
 
     setSubmittingWeek(true);
     try {
-      const res = await fetch(`${API_BASE}/timesheets/submit-week/`, {
+      const res = await makeAPICall(`${API_BASE}/timesheets/submit-week/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           week_start_date: weekStartDate,
           force_submit: false
@@ -289,10 +360,8 @@ export default function MainPage() {
           const warningMsg = `Warnings found:\n${data.week_warnings?.join('\n') || ''}\n\nDo you want to submit anyway?`;
           if (confirm(warningMsg)) {
             // Retry with force_submit
-            const forceRes = await fetch(`${API_BASE}/timesheets/submit-week/`, {
+            const forceRes = await makeAPICall(`${API_BASE}/timesheets/submit-week/`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
               body: JSON.stringify({
                 week_start_date: weekStartDate,
                 force_submit: true
@@ -313,6 +382,7 @@ export default function MainPage() {
         }
       }
     } catch (error) {
+      console.error('💥 Submit week error:', error);
       showNotification('Failed to submit week: ' + error, 'error');
     } finally {
       setSubmittingWeek(false);
@@ -340,7 +410,7 @@ export default function MainPage() {
     setCurrentDate(newDate);
   };
 
-  // FIXED: Improved date header formatting
+  // Improved date header formatting
   const formatDateHeader = () => {
     if (viewMode === 'day') {
       return currentDate.toLocaleDateString('en-US', { 
@@ -360,64 +430,90 @@ export default function MainPage() {
     }
   };
 
+  // ✅ FIXED: Load activities with proper API call
   const loadActivities = async (projectId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/timesheets/project/${projectId}/activities/`, {
-        credentials: 'include'
-      });
+      console.log('🎯 Loading activities for project:', projectId);
+      const res = await makeAPICall(`${API_BASE}/timesheets/project/${projectId}/activities/`);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('✅ Activities loaded:', data);
         setActivities(data.activity_types || []);
+      } else {
+        console.log('❌ Failed to load activities');
+        const errorText = await res.text();
+        console.log('❌ Activities error:', errorText);
       }
     } catch (error) {
-      console.error('Failed to load activities:', error);
+      console.error('💥 Failed to load activities:', error);
     }
   };
 
   const showNotification = (message: string, type = 'success') => {
+    console.log(`📢 Notification (${type}):`, message);
     if (type === 'success') setSuccess(message);
     else setError(message);
     setTimeout(() => { setSuccess(''); setError(''); }, 3000);
   };
 
+  // ✅ FIXED: Edit timesheet with proper API call
   const editTimesheet = async (id: number, data: any) => {
     try {
-      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
+      console.log('✏️ Editing timesheet:', id, data);
+      const res = await makeAPICall(`${API_BASE}/timesheets/${id}/`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(data)
       });
+      
       if (res.ok) {
         showNotification('Timesheet updated successfully');
         loadData();
         setEditingTimesheet(null);
+      } else {
+        const errorData = await res.json();
+        console.log('❌ Edit timesheet error:', errorData);
+        showNotification('Failed to update timesheet', 'error');
       }
     } catch (error) {
+      console.error('💥 Edit timesheet error:', error);
       showNotification('Failed to update timesheet', 'error');
     }
   };
 
+  // ✅ FIXED: Delete timesheet with proper API call
   const deleteTimesheet = async (id: number) => {
     if (!confirm('Delete this timesheet?')) return;
+    
     try {
-      const res = await fetch(`${API_BASE}/timesheets/${id}/`, {
-        method: 'DELETE',
-        credentials: 'include'
+      console.log('🗑️ Deleting timesheet:', id);
+      const res = await makeAPICall(`${API_BASE}/timesheets/${id}/`, {
+        method: 'DELETE'
       });
+      
       if (res.ok) {
         showNotification('Timesheet deleted successfully');
         loadData();
+      } else {
+        const errorData = await res.text();
+        console.log('❌ Delete timesheet error:', errorData);
+        showNotification('Failed to delete timesheet', 'error');
       }
     } catch (error) {
+      console.error('💥 Delete timesheet error:', error);
       showNotification('Failed to delete timesheet', 'error');
     }
   };
 
+  // ✅ FIXED: Create timesheet with proper API call
   const createTimesheet = async (formData: FormData) => {
-    if (!user) return;
+    if (!user) {
+      console.log('❌ No user found for timesheet creation');
+      return;
+    }
     
     setCreating(true);
+    
     try {
       const data = {
         employee_id: user.employee_id,
@@ -428,10 +524,10 @@ export default function MainPage() {
         description: formData.get('description') as string || ''
       };
 
-      const res = await fetch(`${API_BASE}/timesheets/`, {
+      console.log('📝 Creating timesheet:', data);
+
+      const res = await makeAPICall(`${API_BASE}/timesheets/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(data)
       });
 
@@ -440,10 +536,12 @@ export default function MainPage() {
         showNotification('Timesheet draft created successfully');
         loadData();
       } else {
-        const error = await res.json();
-        showNotification('Failed to create timesheet: ' + (error.error || 'Unknown error'), 'error');
+        const errorData = await res.json();
+        console.log('❌ Create timesheet error:', errorData);
+        showNotification('Failed to create timesheet: ' + (errorData.error || 'Unknown error'), 'error');
       }
     } catch (error) {
+      console.error('💥 Create timesheet error:', error);
       showNotification('Failed to create timesheet: ' + error, 'error');
     } finally {
       setCreating(false);
@@ -463,7 +561,7 @@ export default function MainPage() {
     editTimesheet(editingTimesheet.id, data);
   };
 
-  // NEW: Render monthly calendar view like Google Calendar
+  // Render monthly calendar view like Google Calendar
   const renderMonthlyView = () => {
     const calendarGrid = getMonthCalendarGrid();
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -532,7 +630,7 @@ export default function MainPage() {
     );
   };
 
-  // NEW: Render weekly view (existing logic)
+  // Render weekly view (existing logic)
   const renderWeeklyView = () => {
     const daysToShow = getDaysForView();
 
@@ -542,7 +640,7 @@ export default function MainPage() {
           const dayTimesheets = getTimesheetsForDate(dateStr);
           const dayTotal = getDayTotal(dateStr);
           
-          // FIXED: Proper date display
+          // Proper date display
           const displayDate = parseDateString(dateStr);
           const dayName = displayDate.toLocaleDateString('en-GB', { 
             weekday: 'long'
@@ -602,10 +700,12 @@ export default function MainPage() {
   };
 
   if (loading) {
+    console.log('⏳ MainPage: Showing loading state');
     return <div className="loading">Loading...</div>;
   }
 
   if (!user) {
+    console.log('🚫 MainPage: No user found, showing login prompt');
     return (
       <div className="container">
         <h2>Please log in</h2>
@@ -614,6 +714,8 @@ export default function MainPage() {
     );
   }
 
+  console.log('✅ MainPage: Rendering main page for user:', user);
+  
   const isAdmin = user.role === 'admin' || user.role === 'manager';
   const weekDraftCount = getWeekDraftCount();
   const weekSubmittedCount = getWeekSubmittedCount();

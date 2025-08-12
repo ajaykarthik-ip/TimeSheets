@@ -41,7 +41,7 @@ export default function AdminTimesheets() {
   const [dateTo, setDateTo] = useState('');
 
   // API Base URL
-  const API_BASE = 'http://localhost:8000/api';
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ||'http://localhost:8000/api';
 
   // Set default date range (current month)
   useEffect(() => {

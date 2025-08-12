@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import '../auth.css';
 
+// Get API base URL from environment
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
 // Declare Google API types
 declare global {
@@ -66,7 +68,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/google-login/', {
+      const res = await fetch(`${API_BASE}/auth/google-login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,37 +111,50 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      const response = await fetch('http://localhost:8000/api/auth/login/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important for session cookies
-        body: JSON.stringify(formData),
-      });
+  console.log('🔐 Login: Starting login process...');
+  console.log('📝 Login: Form data:', { email: formData.email, password: '[HIDDEN]' });
+  console.log('🍪 Login: Cookies before login:', document.cookie);
 
-      const data = await response.json();
+  try {
+    const response = await fetch(`${API_BASE}/auth/login/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // ✅ CRITICAL: Include cookies
+      body: JSON.stringify(formData),
+    });
 
-      if (response.ok) {
-        // Use AuthContext login method
-        login(data.user);
-        // Redirect to timesheet page
-        router.push('/');
-      } else {
-        setError(data.detail || data.email?.[0] || data.password?.[0] || 'Login failed');
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Network error. Please check if the backend server is running.');
-    } finally {
-      setLoading(false);
+    console.log('📡 Login: Response status:', response.status);
+    console.log('📡 Login: Response headers:', [...response.headers.entries()]);
+    
+    const data = await response.json();
+    console.log('📡 Login: Response data:', data);
+
+    if (response.ok) {
+      console.log('✅ Login successful!');
+      console.log('🍪 All cookies after login:', document.cookie);
+      
+      // Use AuthContext login method
+      login(data.user);
+      console.log('🔄 Redirecting to main page...');
+      // Redirect to timesheet page
+      router.push('/');
+    } else {
+      console.log('❌ Login failed:', data);
+      setError(data.detail || data.email?.[0] || data.password?.[0] || 'Login failed');
     }
-  };
+  } catch (err) {
+    console.error('💥 Login error:', err);
+    setError('Network error. Please check if the backend server is running.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="auth-container">
