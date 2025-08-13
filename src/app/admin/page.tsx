@@ -35,10 +35,8 @@ export default function AdminTimesheets() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // API Base URL
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ||'http://localhost:8000/api';
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
-  // Set default date range (current month)
   useEffect(() => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -48,7 +46,6 @@ export default function AdminTimesheets() {
     setDateTo(lastDay.toISOString().split('T')[0]);
   }, []);
 
-  // Function to format date to British format (dd/mm/yyyy)
   const formatToBritishDate = (dateString: string): string => {
     if (!dateString) return '';
     
@@ -65,7 +62,6 @@ export default function AdminTimesheets() {
     }
   };
 
-  // Fetch projects for dropdown
   const fetchProjects = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/projects/active/`, {
@@ -81,7 +77,6 @@ export default function AdminTimesheets() {
     }
   }, [API_BASE]);
 
-  // Fetch timesheet data for selected project
   const fetchProjectTimesheets = useCallback(async () => {
     if (!selectedProject || !dateFrom || !dateTo) return;
 
@@ -93,7 +88,7 @@ export default function AdminTimesheets() {
         project_id: selectedProject,
         date_from: dateFrom,
         date_to: dateTo,
-        page_size: '1000' // Get all entries for summary
+        page_size: '1000'
       });
 
       const response = await fetch(`${API_BASE}/timesheets/admin/all/?${params}`, {
@@ -105,7 +100,6 @@ export default function AdminTimesheets() {
       const data = await response.json();
       const timesheets = data.timesheets || [];
 
-      // Process data into summary format
       const summary = processTimesheetData(timesheets);
       setProjectData(summary);
 
@@ -117,13 +111,11 @@ export default function AdminTimesheets() {
     }
   }, [selectedProject, dateFrom, dateTo, API_BASE]);
 
-  // Process raw timesheet data into summary format
   const processTimesheetData = (timesheets: TimesheetEntry[]): ProjectTimesheetSummary => {
     const employees: { [key: string]: string } = {};
     const activities: Set<string> = new Set();
     const data: { [employeeId: string]: { [activity: string]: number } } = {};
 
-    // First pass: collect all employees and activities
     timesheets.forEach(ts => {
       employees[ts.employee_id] = ts.employee_name;
       activities.add(ts.activity_type);
@@ -137,26 +129,22 @@ export default function AdminTimesheets() {
       data[ts.employee_id][ts.activity_type] += parseFloat(ts.hours_worked || '0');
     });
 
-    // Calculate totals
     const totals = {
       byEmployee: {} as { [employeeId: string]: number },
       byActivity: {} as { [activity: string]: number },
       grandTotal: 0
     };
 
-    // Calculate employee totals
     Object.keys(data).forEach(employeeId => {
       totals.byEmployee[employeeId] = Object.values(data[employeeId]).reduce((sum, hours) => sum + hours, 0);
     });
 
-    // Calculate activity totals
     Array.from(activities).forEach(activity => {
       totals.byActivity[activity] = Object.keys(data).reduce((sum, employeeId) => {
         return sum + (data[employeeId][activity] || 0);
       }, 0);
     });
 
-    // Calculate grand total
     totals.grandTotal = Object.values(totals.byEmployee).reduce((sum, total) => sum + total, 0);
 
     return {
@@ -167,12 +155,10 @@ export default function AdminTimesheets() {
     };
   };
 
-  // Load projects on component mount
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  // Fetch project data when project, date range changes
   useEffect(() => {
     if (selectedProject && dateFrom && dateTo) {
       fetchProjectTimesheets();
@@ -181,7 +167,6 @@ export default function AdminTimesheets() {
     }
   }, [selectedProject, dateFrom, dateTo, fetchProjectTimesheets]);
 
-  // Get selected project name
   const getSelectedProjectName = () => {
     const project = projects.find(p => p.id.toString() === selectedProject);
     return project ? project.name : '';
@@ -195,20 +180,13 @@ export default function AdminTimesheets() {
       </div>
 
       {error && (
-        <div style={{ 
-          background: '#f8d7da', 
-          color: '#721c24', 
-          padding: '10px', 
-          borderRadius: '5px', 
-          marginBottom: '20px' 
-        }}>
+        <div className="error-box">
           {error}
         </div>
       )}
 
-      {/* Filters */}
       <div>
-        <h3 >Select Project and Date Range</h3>
+        <h3>Select Project and Date Range</h3>
         
         <div className="form-row">
           <div className="form-group">
@@ -216,7 +194,6 @@ export default function AdminTimesheets() {
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              style={{ fontSize: '16px', padding: '10px' }}
             >
               <option value="">Select a project...</option>
               {projects.map((project) => (
@@ -247,78 +224,60 @@ export default function AdminTimesheets() {
           </div>
         </div>
 
-        <div style={{ 
-          fontSize: '14px', 
-          color: '#666', 
-          marginTop: '10px',
-          fontStyle: 'italic'
-        }}>
+        <div>
           Date Range: {formatToBritishDate(dateFrom)} - {formatToBritishDate(dateTo)}
         </div>
       </div>
 
-      {/* Loading state */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div className="loading-box">
           <div>Loading project timesheet data...</div>
         </div>
       )}
 
-      {/* Project summary table */}
       {!loading && projectData && selectedProject && (
         <div>
-          <div style={{ marginBottom: '20px' }}>
-            <h2 style={{ 
-              color: '#333', 
-              borderBottom: '2px solid #ddd', 
-              paddingBottom: '10px',
-              marginBottom: '20px'
-            }}>
+          <div>
+            <h2>
               {getSelectedProjectName()}
             </h2>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table className="admin-table" style={{ minWidth: '800px' }}>
+          <div className="table-container">
+            <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>Employee Name</th>
+                  <th>Employee Name</th>
                   {projectData.activities.map((activity) => (
-                    <th key={activity} style={{ backgroundColor: '#f8f9fa' }}>{activity}</th>
+                    <th key={activity}>{activity}</th>
                   ))}
-                  <th style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>Total</th>
+                  <th>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(projectData.employees).map(([employeeId, employeeName]) => (
                   <tr key={employeeId}>
-                    <td style={{ fontWeight: 'bold' }}>{employeeName}</td>
+                    <td>{employeeName}</td>
                     {projectData.activities.map((activity) => (
-                      <td key={activity} style={{ textAlign: 'center' }}>
+                      <td key={activity}>
                         {projectData.data[employeeId]?.[activity] 
                           ? Math.round(projectData.data[employeeId][activity] * 100) / 100
                           : 0}
                       </td>
                     ))}
-                    <td style={{ fontWeight: 'bold', textAlign: 'center', backgroundColor: '#f8f9fa' }}>
+                    <td>
                       {Math.round(projectData.totals.byEmployee[employeeId] * 100) / 100}
                     </td>
                   </tr>
                 ))}
-                {/* Total row */}
-                <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
-                  <td style={{ fontWeight: 'bold' }}>Total</td>
+                <tr>
+                  <td>Total</td>
                   {projectData.activities.map((activity) => (
-                    <td key={activity} style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                    <td key={activity}>
                       {Math.round(projectData.totals.byActivity[activity] * 100) / 100}
                     </td>
                   ))}
-                  <td style={{ 
-                    textAlign: 'center', 
-                    fontWeight: 'bold', 
-                    backgroundColor: '#dee2e6',
-                    fontSize: '16px'
-                  }}>
+                  <td>
                     {Math.round(projectData.totals.grandTotal * 100) / 100}
                   </td>
                 </tr>
@@ -326,8 +285,7 @@ export default function AdminTimesheets() {
             </table>
           </div>
 
-          {/* Summary stats */}
-          <div className="stats-grid" style={{ marginTop: '30px' }}>
+          <div className="stats-grid">
             <div className="stat-card">
               <h3>Total Employees</h3>
               <div className="number">{Object.keys(projectData.employees).length}</div>
@@ -352,32 +310,18 @@ export default function AdminTimesheets() {
         </div>
       )}
 
-      {/* No project selected state */}
       {!selectedProject && !loading && (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px', 
-          color: '#999',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px'
-        }}>
+        <div className="no-project-box">
           <h3>Select a Project</h3>
           <p>Choose a project from the dropdown above to view the timesheet summary.</p>
         </div>
       )}
 
-      {/* No data state */}
       {!loading && selectedProject && projectData && Object.keys(projectData.employees).length === 0 && (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '40px', 
-          color: '#999',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px'
-        }}>
-          <h3 style={{ marginBottom: '10px', color: '#666' }}>No Data Found</h3>
+        <div className="no-data-box">
+          <h3>No Data Found</h3>
           <p>No timesheet entries found for the selected project and date range.</p>
-          <p style={{ fontSize: '14px' }}>
+          <p>
             Try selecting a different date range or check if employees have logged time for this project.
           </p>
         </div>
