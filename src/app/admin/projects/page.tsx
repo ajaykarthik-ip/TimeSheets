@@ -8,7 +8,7 @@ interface Project {
   name: string;
   billable: boolean;
   status: string;
-  status_display: string;
+  status_display?: string;
   activity_types_display: string[];
   created_at: string;
   updated_at: string;
@@ -18,14 +18,38 @@ interface ProjectChoices {
   statuses: { [key: string]: string };
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+
+// ✅ JWT API helper
+const makeAPICall = async (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('access_token');
+  
+  return fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
+};
+
 export default function AdminProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [choices, setChoices] = useState<ProjectChoices>({ statuses: {} });
+  const [choices, setChoices] = useState<ProjectChoices>({ 
+    statuses: {
+      'active': 'Active',
+      'completed': 'Completed', 
+      'on_hold': 'On Hold',
+      'cancelled': 'Cancelled'
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -34,15 +58,10 @@ export default function AdminProjects() {
     activity_types_list: [] as string[]
   });
 
-  // API Base URL
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ||'http://localhost:8000/api';
-
-  // Fetch projects
+  // ✅ Fetch projects
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/projects/`, {
-        credentials: 'include'
-      });
+      const response = await makeAPICall(`${API_BASE}/projects/`);
       if (!response.ok) throw new Error('Failed to fetch projects');
       const data = await response.json();
       setProjects(data.projects || []);
@@ -50,41 +69,52 @@ export default function AdminProjects() {
       setError('Failed to load projects');
       console.error(err);
     }
-  }, [API_BASE]);
+  }, []);
 
-  // Fetch choices
+  // ✅ Fetch choices
   const fetchChoices = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/projects/choices/`, {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error('Failed to fetch choices');
-      const data = await response.json();
-      setChoices(data);
-    } catch (err) {
-      console.error('Failed to load choices:', err);
+      const response = await makeAPICall(`${API_BASE}/projects/choices/`);
+      if (response.ok) {
+        const data = await response.json();
+        setChoices(data);
+      }
+    } catch {
+      console.log('Using default project choices');
     }
-  }, [API_BASE]);
+  }, []);
 
-  // Load initial data
+  // Load data
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([
-        fetchProjects(),
-        fetchChoices()
-      ]);
+      await Promise.all([fetchProjects(), fetchChoices()]);
       setLoading(false);
     };
     loadData();
   }, [fetchProjects, fetchChoices]);
 
-  // Filter projects
+  // ✅ Load current user
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const response = await makeAPICall(`${API_BASE}/timesheets/user-info/`);
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser(userData);
+        }
+      } catch (error) {
+        console.error('Failed to load user info:', error);
+      }
+    };
+    loadUser();
+  }, []);
+
   const filteredProjects = projects.filter(project => 
     project.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Handle form submission
+  // ✅ Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -92,23 +122,13 @@ export default function AdminProjects() {
     try {
       let response;
       if (editingProject) {
-        // Update project
-        response = await fetch(`${API_BASE}/projects/${editingProject.id}/`, {
+        response = await makeAPICall(`${API_BASE}/projects/${editingProject.id}/`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
           body: JSON.stringify(formData)
         });
       } else {
-        // Create new project
-        response = await fetch(`${API_BASE}/projects/`, {
+        response = await makeAPICall(`${API_BASE}/projects/`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
           body: JSON.stringify(formData)
         });
       }
@@ -118,19 +138,13 @@ export default function AdminProjects() {
         throw new Error(errorData.error || 'Failed to save project');
       }
 
-      // Refresh data
       await fetchProjects();
       resetForm();
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred');
-      }
+      setError(err instanceof Error ? err.message : 'Unexpected error');
     }
   };
 
-  // Reset form
   const resetForm = () => {
     setFormData({
       name: '',
@@ -143,7 +157,6 @@ export default function AdminProjects() {
     setError('');
   };
 
-  // Handle edit
   const handleEdit = (project: Project) => {
     setEditingProject(project);
     setFormData({
@@ -155,81 +168,54 @@ export default function AdminProjects() {
     setShowForm(true);
   };
 
-  // Handle delete
   const handleDelete = async (project: Project) => {
-    if (!confirm(`Are you sure you want to delete ${project.name}?`)) {
-      return;
-    }
+    if (!confirm(`Delete ${project.name}?`)) return;
 
     try {
-      const response = await fetch(`${API_BASE}/projects/${project.id}/`, {
-        method: 'DELETE',
-        credentials: 'include'
+      const response = await makeAPICall(`${API_BASE}/projects/${project.id}/`, {
+        method: 'DELETE'
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete project');
-      }
-
+      if (!response.ok) throw new Error('Failed to delete project');
       await fetchProjects();
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to delete project');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
 
-  // Add activity type
-  const addActivityType = () => {
-    setFormData({
-      ...formData,
-      activity_types_list: [...formData.activity_types_list, '']
-    });
-  };
+  const addActivityType = () =>
+    setFormData({ ...formData, activity_types_list: [...formData.activity_types_list, ''] });
 
-  // Remove activity type
-  const removeActivityType = (index: number) => {
-    const newList = formData.activity_types_list.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      activity_types_list: newList
-    });
-  };
+  const removeActivityType = (index: number) =>
+    setFormData({ ...formData, activity_types_list: formData.activity_types_list.filter((_, i) => i !== index) });
 
-  // Update activity type
   const updateActivityType = (index: number, value: string) => {
     const newList = [...formData.activity_types_list];
     newList[index] = value;
-    setFormData({
-      ...formData,
-      activity_types_list: newList
-    });
+    setFormData({ ...formData, activity_types_list: newList });
   };
 
-  if (loading) {
-    return <div>Loading projects...</div>;
-  }
+  if (loading) return <div className="loading">Loading projects...</div>;
 
   return (
     <div>
       <div className="admin-header">
         <h1>Project Management</h1>
         <p>Add, edit, and manage projects</p>
+
+        {currentUser && (
+          <div className="user-box">
+            <div>
+              <p className="user-info">
+                <strong>Managing as:</strong> {currentUser.user_name} ({currentUser.designation})
+              </p>
+              <p className="user-email">{currentUser.email}</p>
+            </div>
+            <div className="user-role">Project Admin: ✅</div>
+          </div>
+        )}
       </div>
 
-      {error && (
-        <div style={{ 
-          background: '#f8d7da', 
-          color: '#721c24', 
-          padding: '10px', 
-          borderRadius: '5px', 
-          marginBottom: '20px' 
-        }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error">{error}</div>}
 
       <div className="actions">
         <input
@@ -239,10 +225,7 @@ export default function AdminProjects() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowForm(true)}
-        >
+        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
           Add Project
         </button>
       </div>
@@ -268,39 +251,20 @@ export default function AdminProjects() {
               </td>
               <td>
                 <span className={`status-badge status-${project.status}`}>
-                  {project.status_display || project.status.toUpperCase()}
+                  {project.status_display || choices.statuses[project.status] || project.status.toUpperCase()}
                 </span>
               </td>
+              <td>{project.activity_types_display?.length ? project.activity_types_display.join(', ') : 'No activities defined'}</td>
               <td>
-                {project.activity_types_display && project.activity_types_display.length > 0 ? 
-                  project.activity_types_display.join(', ') : 
-                  'No activities'
-                }
-              </td>
-              <td>
-                <button 
-                  className="btn btn-warning"
-                  onClick={() => handleEdit(project)}
-                >
-                  Edit
-                </button>
-                <button 
-                  className="btn btn-danger"
-                  onClick={() => handleDelete(project)}
-                >
-                  Delete
-                </button>
+                <button className="btn btn-warning" onClick={() => handleEdit(project)}>Edit</button>
+                <button className="btn btn-danger" onClick={() => handleDelete(project)}>Delete</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {filteredProjects.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
-          No projects found.
-        </div>
-      )}
+      {!filteredProjects.length && !loading && <div className="empty-state">No projects found.</div>}
 
       {showForm && (
         <div className="modal">
@@ -318,7 +282,7 @@ export default function AdminProjects() {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g., Client A - Website Redesign"
                   />
                 </div>
@@ -326,7 +290,7 @@ export default function AdminProjects() {
                   <label>Status *</label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   >
                     {Object.entries(choices.statuses).map(([key, value]) => (
                       <option key={key} value={key}>{value}</option>
@@ -340,49 +304,55 @@ export default function AdminProjects() {
                   <input
                     type="checkbox"
                     checked={formData.billable}
-                    onChange={(e) => setFormData({...formData, billable: e.target.checked})}
-                  />
-                  {' '}Billable Project
+                    onChange={(e) => setFormData({ ...formData, billable: e.target.checked })}
+                  /> Billable Project
                 </label>
               </div>
 
               <div className="form-group">
                 <label>Activity Types</label>
-                <small style={{ display: 'block', marginBottom: '10px', color: '#666' }}>
+                <small className="help-text">
                   Define the types of activities that can be tracked for this project
                 </small>
-                
+
                 {formData.activity_types_list.map((activity, index) => (
-                  <div key={index} style={{ display: 'flex', marginBottom: '5px', gap: '10px' }}>
+                  <div key={index} className="activity-row">
                     <input
                       type="text"
                       value={activity}
                       onChange={(e) => updateActivityType(index, e.target.value)}
                       placeholder="e.g., Development, Testing, Design"
-                      style={{ flex: 1 }}
+                      className="activity-input"
                     />
                     <button
                       type="button"
                       onClick={() => removeActivityType(index)}
-                      className="btn btn-danger"
-                      style={{ padding: '5px 10px' }}
+                      className="btn btn-danger btn-small"
                     >
                       Remove
                     </button>
                   </div>
                 ))}
                 
-                <button
-                  type="button"
-                  onClick={addActivityType}
-                  className="btn"
-                  style={{ marginTop: '10px' }}
-                >
+                <button type="button" onClick={addActivityType} className="btn btn-secondary">
                   Add Activity Type
                 </button>
+
+                {!formData.activity_types_list.length && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({
+                      ...formData,
+                      activity_types_list: ['Development', 'Testing', 'Design', 'Meeting']
+                    })}
+                    className="btn btn-success"
+                  >
+                    Add Default Activities
+                  </button>
+                )}
               </div>
 
-              <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <div className="form-actions">
                 <button type="button" className="btn" onClick={resetForm}>Cancel</button>
                 <button type="submit" className="btn btn-primary">
                   {editingProject ? 'Update' : 'Add'} Project

@@ -1,272 +1,178 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import '../auth.css';
-
-// Get API base URL from environment
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
-
-// Define Google API types
-interface GoogleCredentialResponse {
-  credential: string;
-}
-
-interface GoogleInitializeConfig {
-  client_id: string;
-  callback: (response: GoogleCredentialResponse) => void;
-  auto_select: boolean;
-}
-
-interface GoogleButtonConfig {
-  theme: string;
-  size: string;
-  width: string;
-  text: string;
-}
-
-interface GoogleAccounts {
-  id: {
-    initialize: (config: GoogleInitializeConfig) => void;
-    renderButton: (element: HTMLElement | null, config: GoogleButtonConfig) => void;
-  };
-}
-
-// Declare Google API types
-declare global {
-  interface Window {
-    google: {
-      accounts: GoogleAccounts;
-    };
-    googleLoginCallback: (response: GoogleCredentialResponse) => void;
-  }
-}
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useAuth();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  const handleGoogleLogin = useCallback(async (response: GoogleCredentialResponse) => {
-    setGoogleLoading(true);
-    setError('');
-
-    try {
-      const res = await fetch(`${API_BASE}/auth/google-login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          token: response.credential
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // Use AuthContext login method
-        login(data.user);
-        // Show success message if account was created
-        if (data.created) {
-          alert('Account created successfully with Google!');
-        }
-        // Redirect to timesheet page
-        router.push('/');
-      } else {
-        setError(data.error || data.details || 'Google login failed');
-      }
-    } catch (err) {
-      console.error('Google login error:', err);
-      setError('Network error during Google login. Please try again.');
-    } finally {
-      setGoogleLoading(false);
-    }
-  }, [login, router]);
-
-  // Initialize Google OAuth
-  useEffect(() => {
-    // Load Google OAuth script
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
-          callback: handleGoogleLogin,
-          auto_select: false,
-        });
-
-        // Render the Google Sign-In button
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-button'),
-          {
-            theme: 'outline',
-            size: 'large',
-            width: '100%',
-            text: 'signin_with',
-          }
-        );
-      }
-    };
-
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [handleGoogleLogin]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    // Clear error when user starts typing
-    if (error) setError('');
-  };
+  const { login } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  console.log('🔐 Login: Starting login process...');
-  console.log('📝 Login: Form data:', { email: formData.email, password: '[HIDDEN]' });
-  console.log('🍪 Login: Cookies before login:', document.cookie);
-
-  try {
-    const response = await fetch(`${API_BASE}/auth/login/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // ✅ CRITICAL: Include cookies
-      body: JSON.stringify(formData),
-    });
-
-    console.log('📡 Login: Response status:', response.status);
-    console.log('📡 Login: Response headers:', [...response.headers.entries()]);
-    
-    const data = await response.json();
-    console.log('📡 Login: Response data:', data);
-
-    if (response.ok) {
-      console.log('✅ Login successful!');
-      console.log('🍪 All cookies after login:', document.cookie);
+    try {
+      const result = await login(email, password);
       
-      // Use AuthContext login method
-      login(data.user);
-      console.log('🔄 Redirecting to main page...');
-      // Redirect to timesheet page
-      router.push('/');
-    } else {
-      console.log('❌ Login failed:', data);
-      setError(data.detail || data.email?.[0] || data.password?.[0] || 'Login failed');
+      if (result.success) {
+        router.push('/'); // or wherever you want to redirect
+      } else {
+        setError(result.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('💥 Login error:', err);
-    setError('Network error. Please check if the backend server is running.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h1>Welcome Back</h1>
-          <p>Sign in to your timesheet account</p>
-        </div>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'radial-gradient(ellipse at top, #0f0f23 0%, #050507 100%)',
+      padding: '16px'
+    }}>
+      <div style={{
+        background: 'rgba(0, 0, 0, 0.8)',
+        backdropFilter: 'blur(40px)',
+        WebkitBackdropFilter: 'blur(40px)',
+        borderRadius: '12px',
+        padding: '32px',
+        width: '100%',
+        maxWidth: '400px',
+        border: '1px solid rgba(255, 255, 255, 0.1)'
+      }}>
+        <h1 style={{
+          color: 'rgba(255, 255, 255, 0.95)',
+          fontSize: '24px',
+          fontWeight: '600',
+          textAlign: 'center',
+          marginBottom: '24px',
+          letterSpacing: '-0.01em'
+        }}>
+          Mobiux Timesheet
+        </h1>
 
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
-
-        {/* Google Sign-In Button */}
-        <div className="google-signin-section">
-          <div 
-            id="google-signin-button"
-            style={{ marginBottom: '20px' }}
-          ></div>
-          {googleLoading && (
-            <div className="loading" style={{ marginBottom: '15px' }}>
-              <div className="spinner"></div>
-              Signing in with Google...
-            </div>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              color: 'rgba(255, 255, 255, 0.8)',
+              fontSize: '14px',
+              fontWeight: '500',
+              marginBottom: '8px'
+            }}>
+              Email Address
+            </label>
             <input
               type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="Enter your email"
-              className={error ? 'error' : ''}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'rgba(255, 255, 255, 0.9)',
+                fontSize: '14px',
+                outline: 'none',
+                transition: 'all 0.2s ease'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'rgba(0, 122, 255, 0.6)';
+                e.target.style.background = 'rgba(255, 255, 255, 0.08)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+              }}
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{
+              display: 'block',
+              color: 'rgba(255, 255, 255, 0.8)',
+              fontSize: '14px',
+              fontWeight: '500',
+              marginBottom: '8px'
+            }}>
+              Password
+            </label>
             <input
               type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="Enter your password"
-              className={error ? 'error' : ''}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'rgba(255, 255, 255, 0.9)',
+                fontSize: '14px',
+                outline: 'none',
+                transition: 'all 0.2s ease'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'rgba(0, 122, 255, 0.6)';
+                e.target.style.background = 'rgba(255, 255, 255, 0.08)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+              }}
             />
           </div>
 
-          <button 
-            type="submit" 
-            className="auth-button"
+          {error && (
+            <div style={{
+              color: 'rgb(255, 69, 58)',
+              background: 'rgba(255, 69, 58, 0.15)',
+              padding: '12px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
             disabled={loading}
+            style={{
+              width: '100%',
+              padding: '14px',
+              borderRadius: '8px',
+              border: 'none',
+              background: loading 
+                ? 'rgba(255, 255, 255, 0.1)' 
+                : 'linear-gradient(135deg, rgba(0, 122, 255, 0.8) 0%, rgba(88, 86, 214, 0.8) 100%)',
+              color: 'white',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: loading ? 0.6 : 1
+            }}
           >
-            {loading ? (
-              <div className="loading">
-                <div className="spinner"></div>
-                Signing In...
-              </div>
-            ) : (
-              'Sign In'
-            )}
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="auth-links">
-          <p>
-            Don&apos;t have an account?{' '}
-            <Link href="/register">Create one here</Link>
-          </p>
-        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 // Types
 interface Project {
@@ -8,150 +9,283 @@ interface Project {
   name: string;
 }
 
+interface User {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  designation: string;
+}
+
 interface TimesheetEntry {
-  employee_id: string;
-  employee_name: string;
+  id: number;
+  user: number;
+  user_email: string;
+  user_name: string;
+  user_designation: string;
+  project: number;
+  project_name: string;
+  project_status: string;
   activity_type: string;
+  date: string;
   hours_worked: string;
+  description: string;
+  status: string;
+  status_display: string;
+  can_edit: boolean;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string;
+}
+
+interface DashboardStats {
+  total_timesheets: number;
+  total_hours: number;
+  unique_users: number;
+  unique_projects: number;
+  draft_count: number;
+  submitted_count: number;
+  date_range: string;
+}
+
+interface TopUser {
+  user__first_name: string;
+  user__last_name: string;
+  user__email: string;
+  total_hours: number;
+  entry_count: number;
+}
+
+interface TopProject {
+  project__name: string;
+  total_hours: number;
+  entry_count: number;
+  unique_users: number;
+}
+
+interface AllTimesheetsResponse {
+  timesheets: TimesheetEntry[];
+  pagination: {
+    total_count: number;
+    page_size: number;
+    offset: number;
+    has_more: boolean;
+  };
+  dashboard_stats: DashboardStats;
+  top_users: TopUser[];
+  top_projects: TopProject[];
+  filters_applied: {
+    user_id?: string;
+    project_id?: string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+    activity_type?: string;
+    user_search?: string;
+    project_search?: string;
+  };
 }
 
 interface ProjectTimesheetSummary {
-  employees: { [key: string]: string }; // employee_id -> employee_name
+  employees: { [key: string]: string };
   activities: string[];
-  data: { [employeeId: string]: { [activity: string]: number } };
+  data: { [userEmail: string]: { [activity: string]: number } };
   totals: {
-    byEmployee: { [employeeId: string]: number };
+    byEmployee: { [userEmail: string]: number };
     byActivity: { [activity: string]: number };
     grandTotal: number;
   };
 }
 
-export default function AdminTimesheets() {
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+
+// JWT API helper
+const makeAPICall = async (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem("access_token");
+
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
+};
+
+export default function AdminDashboard() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [projectData, setProjectData] = useState<ProjectTimesheetSummary | null>(null);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [topUsers, setTopUsers] = useState<TopUser[]>([]);
+  const [topProjects, setTopProjects] = useState<TopProject[]>([]);
+  const [allTimesheets, setAllTimesheets] = useState<TimesheetEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [error, setError] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activeTab, setActiveTab] = useState<'overview' | 'project-summary'>('overview');
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
-
+  // Default date range = current month
   useEffect(() => {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    setDateFrom(firstDay.toISOString().split('T')[0]);
-    setDateTo(lastDay.toISOString().split('T')[0]);
+
+    setDateFrom(firstDay.toISOString().split("T")[0]);
+    setDateTo(lastDay.toISOString().split("T")[0]);
   }, []);
 
   const formatToBritishDate = (dateString: string): string => {
-    if (!dateString) return '';
-    
+    if (!dateString) return "";
+
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
+      return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       });
     } catch (err) {
-      console.error('Date formatting error:', err);
+      console.error("Date formatting error:", err);
       return dateString;
     }
   };
 
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/projects/active/`, {
-        credentials: 'include'
-      });
+      const response = await makeAPICall(`${API_BASE}/projects/active/`);
       if (response.ok) {
         const data = await response.json();
         setProjects(data.projects || []);
+      } else {
+        console.error("Failed to fetch projects");
       }
     } catch (err) {
-      console.error('Failed to fetch projects:', err);
-      setError('Failed to load projects');
+      console.error("Failed to fetch projects:", err);
+      setError("Failed to load projects");
     }
-  }, [API_BASE]);
+  }, []);
 
+  // NEW: Fetch all timesheets with dashboard stats
+  const fetchAllTimesheets = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const params = new URLSearchParams();
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      params.append('page_size', '500'); // Get more data for admin
+
+      const response = await makeAPICall(`${API_BASE}/timesheets/all/?${params}`);
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error("You don't have permission to view all timesheets");
+        }
+        throw new Error("Failed to fetch timesheets");
+      }
+
+      const data: AllTimesheetsResponse = await response.json();
+      
+      setAllTimesheets(data.timesheets);
+      setDashboardStats(data.dashboard_stats);
+      setTopUsers(data.top_users);
+      setTopProjects(data.top_projects);
+      
+    } catch (err: any) {
+      setError(err.message || "Failed to load dashboard data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  // Fetch project-specific timesheets for detailed view
   const fetchProjectTimesheets = useCallback(async () => {
     if (!selectedProject || !dateFrom || !dateTo) return;
 
     try {
       setLoading(true);
-      setError('');
-      
-      const params = new URLSearchParams({
-        project_id: selectedProject,
-        date_from: dateFrom,
-        date_to: dateTo,
-        page_size: '1000'
-      });
+      setError("");
 
-      const response = await fetch(`${API_BASE}/timesheets/admin/all/?${params}`, {
-        credentials: 'include'
-      });
+      const params = new URLSearchParams();
+      params.append('project_id', selectedProject);
+      params.append('date_from', dateFrom);
+      params.append('date_to', dateTo);
+      params.append('status', 'submitted');
+      params.append('page_size', '500');
 
-      if (!response.ok) throw new Error('Failed to fetch timesheets');
-      
-      const data = await response.json();
+      const response = await makeAPICall(`${API_BASE}/timesheets/all/?${params}`);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch project timesheets");
+      }
+
+      const data: AllTimesheetsResponse = await response.json();
       const timesheets = data.timesheets || [];
 
       const summary = processTimesheetData(timesheets);
       setProjectData(summary);
-
     } catch (err) {
-      setError('Failed to load project timesheets');
+      setError("Failed to load project timesheets");
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [selectedProject, dateFrom, dateTo, API_BASE]);
+  }, [selectedProject, dateFrom, dateTo]);
 
   const processTimesheetData = (timesheets: TimesheetEntry[]): ProjectTimesheetSummary => {
     const employees: { [key: string]: string } = {};
     const activities: Set<string> = new Set();
-    const data: { [employeeId: string]: { [activity: string]: number } } = {};
+    const data: { [userEmail: string]: { [activity: string]: number } } = {};
 
-    timesheets.forEach(ts => {
-      employees[ts.employee_id] = ts.employee_name;
+    timesheets.forEach((ts) => {
+      employees[ts.user_email] = ts.user_name;
       activities.add(ts.activity_type);
-      
-      if (!data[ts.employee_id]) {
-        data[ts.employee_id] = {};
+
+      if (!data[ts.user_email]) {
+        data[ts.user_email] = {};
       }
-      if (!data[ts.employee_id][ts.activity_type]) {
-        data[ts.employee_id][ts.activity_type] = 0;
+      if (!data[ts.user_email][ts.activity_type]) {
+        data[ts.user_email][ts.activity_type] = 0;
       }
-      data[ts.employee_id][ts.activity_type] += parseFloat(ts.hours_worked || '0');
+      data[ts.user_email][ts.activity_type] += parseFloat(ts.hours_worked || "0");
     });
 
     const totals = {
-      byEmployee: {} as { [employeeId: string]: number },
+      byEmployee: {} as { [userEmail: string]: number },
       byActivity: {} as { [activity: string]: number },
-      grandTotal: 0
+      grandTotal: 0,
     };
 
-    Object.keys(data).forEach(employeeId => {
-      totals.byEmployee[employeeId] = Object.values(data[employeeId]).reduce((sum, hours) => sum + hours, 0);
+    Object.keys(data).forEach((userEmail) => {
+      totals.byEmployee[userEmail] = Object.values(data[userEmail]).reduce(
+        (sum, hours) => sum + hours,
+        0
+      );
     });
 
-    Array.from(activities).forEach(activity => {
-      totals.byActivity[activity] = Object.keys(data).reduce((sum, employeeId) => {
-        return sum + (data[employeeId][activity] || 0);
+    Array.from(activities).forEach((activity) => {
+      totals.byActivity[activity] = Object.keys(data).reduce((sum, userEmail) => {
+        return sum + (data[userEmail][activity] || 0);
       }, 0);
     });
 
-    totals.grandTotal = Object.values(totals.byEmployee).reduce((sum, total) => sum + total, 0);
+    totals.grandTotal = Object.values(totals.byEmployee).reduce(
+      (sum, total) => sum + total,
+      0
+    );
 
     return {
       employees,
       activities: Array.from(activities).sort(),
       data,
-      totals
+      totals,
     };
   };
 
@@ -159,6 +293,14 @@ export default function AdminTimesheets() {
     fetchProjects();
   }, [fetchProjects]);
 
+  // Fetch all timesheets when date range changes or on load
+  useEffect(() => {
+    if (dateFrom && dateTo) {
+      fetchAllTimesheets();
+    }
+  }, [dateFrom, dateTo, fetchAllTimesheets]);
+
+  // Fetch project-specific data when project is selected
   useEffect(() => {
     if (selectedProject && dateFrom && dateTo) {
       fetchProjectTimesheets();
@@ -168,24 +310,40 @@ export default function AdminTimesheets() {
   }, [selectedProject, dateFrom, dateTo, fetchProjectTimesheets]);
 
   const getSelectedProjectName = () => {
-    const project = projects.find(p => p.id.toString() === selectedProject);
-    return project ? project.name : '';
+    const project = projects.find((p) => p.id.toString() === selectedProject);
+    return project ? project.name : "";
   };
+
+  // Show loading if user data is not available yet
+  if (!user) {
+    return <div className="loading">Loading user information...</div>;
+  }
 
   return (
     <div>
       <div className="admin-header">
-        <h1>Summary</h1>
-        <p>View timesheet data organized by project and activity</p>
+        <h1>Timesheet Dashboard</h1>
+        <p>Select a project to view timesheet summary by users and activities</p>
+
+        <div className="user-info-card">
+          <div className="user-info-text">
+            <p className="user-info-line">
+              <strong>Logged in as:</strong> {user.full_name} ({user.designation})
+            </p>
+            <p className="user-info-subline">
+              {user.email} • {user.company}
+            </p>
+          </div>
+          <div className="user-info-access">
+            Admin Access: {user.is_admin || user.is_staff ? "✅" : "❌"}
+          </div>
+        </div>
       </div>
 
-      {error && (
-        <div className="error-box">
-          {error}
-        </div>
-      )}
+      {error && <div className="alert alert-error">{error}</div>}
 
-      <div>
+      {/* Date Range and Project Selection */}
+      <div className="filters-section">
         <h3>Select Project and Date Range</h3>
         
         <div className="form-row">
@@ -223,24 +381,20 @@ export default function AdminTimesheets() {
             />
           </div>
         </div>
-
-        <div>
-          Date Range: {formatToBritishDate(dateFrom)} - {formatToBritishDate(dateTo)}
-        </div>
+        
+        <p>
+          <strong>Date Range:</strong> {formatToBritishDate(dateFrom)} - {formatToBritishDate(dateTo)}
+        </p>
       </div>
 
-      {loading && (
-        <div className="loading-box">
-          <div>Loading project timesheet data...</div>
-        </div>
-      )}
+      {loading && <div className="loading">Loading dashboard data...</div>}
 
+      {/* Project Summary Display */}
       {!loading && projectData && selectedProject && (
         <div>
-          <div>
-            <h2>
-              {getSelectedProjectName()}
-            </h2>
+          <div className="admin-header">
+            <h2>{getSelectedProjectName()}</h2>
+            <p>Submitted timesheets for the selected period</p>
           </div>
 
           <div className="table-container">
@@ -251,34 +405,40 @@ export default function AdminTimesheets() {
                   {projectData.activities.map((activity) => (
                     <th key={activity}>{activity}</th>
                   ))}
-                  <th>Total</th>
+                  <th>Total Hours</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(projectData.employees).map(([employeeId, employeeName]) => (
-                  <tr key={employeeId}>
-                    <td>{employeeName}</td>
+                {Object.entries(projectData.employees).map(([userEmail, userName]) => (
+                  <tr key={userEmail}>
+                    <td>{userName}</td>
                     {projectData.activities.map((activity) => (
                       <td key={activity}>
-                        {projectData.data[employeeId]?.[activity] 
-                          ? Math.round(projectData.data[employeeId][activity] * 100) / 100
-                          : 0}
+                        {projectData.data[userEmail]?.[activity]
+                          ? Math.round(projectData.data[userEmail][activity] * 100) / 100
+                          : 0}h
                       </td>
                     ))}
                     <td>
-                      {Math.round(projectData.totals.byEmployee[employeeId] * 100) / 100}
+                      <strong>
+                        {Math.round(projectData.totals.byEmployee[userEmail] * 100) / 100}h
+                      </strong>
                     </td>
                   </tr>
                 ))}
-                <tr>
-                  <td>Total</td>
+                <tr className="totals-row">
+                  <td><strong>Total</strong></td>
                   {projectData.activities.map((activity) => (
                     <td key={activity}>
-                      {Math.round(projectData.totals.byActivity[activity] * 100) / 100}
+                      <strong>
+                        {Math.round(projectData.totals.byActivity[activity] * 100) / 100}h
+                      </strong>
                     </td>
                   ))}
                   <td>
-                    {Math.round(projectData.totals.grandTotal * 100) / 100}
+                    <strong>
+                      {Math.round(projectData.totals.grandTotal * 100) / 100}h
+                    </strong>
                   </td>
                 </tr>
               </tbody>
@@ -296,14 +456,14 @@ export default function AdminTimesheets() {
             </div>
             <div className="stat-card">
               <h3>Total Hours</h3>
-              <div className="number">{Math.round(projectData.totals.grandTotal * 100) / 100}</div>
+              <div className="number">{Math.round(projectData.totals.grandTotal * 100) / 100}h</div>
             </div>
             <div className="stat-card">
               <h3>Average Hours/Employee</h3>
               <div className="number">
-                {Object.keys(projectData.employees).length > 0 
+                {Object.keys(projectData.employees).length > 0
                   ? Math.round((projectData.totals.grandTotal / Object.keys(projectData.employees).length) * 100) / 100
-                  : 0}
+                  : 0}h
               </div>
             </div>
           </div>
@@ -311,19 +471,17 @@ export default function AdminTimesheets() {
       )}
 
       {!selectedProject && !loading && (
-        <div className="no-project-box">
+        <div className="empty-state">
           <h3>Select a Project</h3>
           <p>Choose a project from the dropdown above to view the timesheet summary.</p>
         </div>
       )}
 
       {!loading && selectedProject && projectData && Object.keys(projectData.employees).length === 0 && (
-        <div className="no-data-box">
+        <div className="empty-state">
           <h3>No Data Found</h3>
-          <p>No timesheet entries found for the selected project and date range.</p>
-          <p>
-            Try selecting a different date range or check if employees have logged time for this project.
-          </p>
+          <p>No submitted timesheet entries found for the selected project and date range.</p>
+          <p>Ensure employees have submitted their timesheets for this project and period.</p>
         </div>
       )}
     </div>

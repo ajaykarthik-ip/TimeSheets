@@ -9,7 +9,7 @@ import '../auth.css';
 // Get API base URL from environment
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
-// Define Google API types
+// Define Google API types (keeping for future use)
 interface GoogleCredentialResponse {
   credential: string;
 }
@@ -47,11 +47,13 @@ declare global {
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
+  
+  // ✅ FIXED: Match backend expected fields
   const [formData, setFormData] = useState({
-    username: '',
     email: '',
     first_name: '',
     last_name: '',
+    designation: 'employee', // Default designation
     password: '',
     password_confirm: ''
   });
@@ -60,48 +62,27 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Google OAuth handler (disabled for now, keeping for future)
   const handleGoogleLogin = useCallback(async (response: GoogleCredentialResponse) => {
     setGoogleLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      const res = await fetch(`${API_BASE}/auth/google-login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          token: response.credential
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // Use AuthContext login method
-        login(data.user);
-        // Show success message if account was created
-        if (data.created) {
-          alert('Account created successfully with Google!');
-        }
-        // Redirect to timesheet page
-        router.push('/');
-      } else {
-        setError(data.error || data.details || 'Google registration failed');
-      }
+      // TODO: Implement Google OAuth when backend supports it
+      setError('Google OAuth not implemented yet');
     } catch (err) {
       console.error('Google registration error:', err);
-      setError('Network error during Google registration. Please try again.');
+      setError('Google registration is not available yet');
     } finally {
       setGoogleLoading(false);
     }
-  }, [login, router]);
+  }, []);
 
-  // Initialize Google OAuth
+  // Initialize Google OAuth (commented out for now)
   useEffect(() => {
-    // Load Google OAuth script
+    // TODO: Uncomment when Google OAuth is implemented in backend
+    /*
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -116,7 +97,6 @@ export default function RegisterPage() {
           auto_select: false,
         });
 
-        // Render the Google Sign-In button
         window.google.accounts.id.renderButton(
           document.getElementById('google-signin-button'),
           {
@@ -132,9 +112,10 @@ export default function RegisterPage() {
     return () => {
       document.head.removeChild(script);
     };
+    */
   }, [handleGoogleLogin]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -164,48 +145,64 @@ export default function RegisterPage() {
     }
 
     try {
+      // ✅ FIXED: Prepare data to match backend expectations
+      const registrationData = {
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        designation: formData.designation,
+        password: formData.password
+        // Remove password_confirm as backend doesn't expect it
+      };
+
+      console.log('📝 Register: Sending data:', { ...registrationData, password: '[HIDDEN]' });
+
+      // ✅ FIXED: Use correct backend endpoint
       const response = await fetch(`${API_BASE}/auth/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(registrationData),
       });
 
       const data = await response.json();
+      console.log('📡 Register: Response:', data);
 
       if (response.ok) {
         setSuccess('Account created successfully! You can now sign in.');
+        console.log('✅ Registration successful:', data);
+        
         // Clear form
         setFormData({
-          username: '',
           email: '',
           first_name: '',
           last_name: '',
+          designation: 'employee',
           password: '',
           password_confirm: ''
         });
+        
         // Redirect to login after 2 seconds
         setTimeout(() => {
           router.push('/login');
         }, 2000);
       } else {
-        // Handle field-specific errors
-        if (data.username) {
-          setError(`Username: ${data.username[0]}`);
+        // ✅ FIXED: Handle backend error format
+        console.log('❌ Registration failed:', data);
+        
+        if (data.error) {
+          setError(data.error);
         } else if (data.email) {
-          setError(`Email: ${data.email[0]}`);
+          setError(`Email: ${Array.isArray(data.email) ? data.email[0] : data.email}`);
         } else if (data.password) {
-          setError(`Password: ${data.password[0]}`);
-        } else if (data.non_field_errors) {
-          setError(data.non_field_errors[0]);
+          setError(`Password: ${Array.isArray(data.password) ? data.password[0] : data.password}`);
         } else {
           setError('Registration failed. Please try again.');
         }
       }
     } catch (err) {
-      console.error('Registration error:', err);
+      console.error('💥 Registration error:', err);
       setError('Network error. Please check if the backend server is running.');
     } finally {
       setLoading(false);
@@ -232,8 +229,8 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* Google Sign-In Button */}
-        <div className="google-signin-section">
+        {/* Google Sign-In Button (disabled for now) */}
+        <div className="google-signin-section" style={{ display: 'none' }}>
           <div 
             id="google-signin-button"
             style={{ marginBottom: '20px' }}
@@ -246,8 +243,8 @@ export default function RegisterPage() {
           )}
         </div>
 
-        {/* Divider */}
-        <div className="auth-divider">
+        {/* Divider (hidden when Google is disabled) */}
+        <div className="auth-divider" style={{ display: 'none' }}>
           <span>or</span>
         </div>
 
@@ -281,19 +278,6 @@ export default function RegisterPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              placeholder="Choose a username"
-            />
-          </div>
-
-          <div className="form-group">
             <label htmlFor="email">Email Address</label>
             <input
               type="email"
@@ -304,6 +288,25 @@ export default function RegisterPage() {
               required
               placeholder="Enter your email"
             />
+          </div>
+
+          {/* ✅ ADDED: Designation field to match backend */}
+          <div className="form-group">
+            <label htmlFor="designation">Designation</label>
+            <select
+              id="designation"
+              name="designation"
+              value={formData.designation}
+              onChange={handleChange}
+              required
+            >
+              <option value="employee">Employee</option>
+              <option value="senior_employee">Senior Employee</option>
+              <option value="team_lead">Team Lead</option>
+              <option value="manager">Manager</option>
+              <option value="senior_manager">Senior Manager</option>
+              <option value="director">Director</option>
+            </select>
           </div>
 
           <div className="form-group">
