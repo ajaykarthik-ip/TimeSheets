@@ -200,19 +200,6 @@ export default function AdminProjects() {
     <div>
       <div className="admin-header">
         <h1>Project Management</h1>
-        <p>Add, edit, and manage projects</p>
-
-        {currentUser && (
-          <div className="user-box">
-            <div>
-              <p className="user-info">
-                <strong>Managing as:</strong> {currentUser.user_name} ({currentUser.designation})
-              </p>
-              <p className="user-email">{currentUser.email}</p>
-            </div>
-            <div className="user-role">Project Admin: ✅</div>
-          </div>
-        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

@@ -323,26 +323,10 @@ export default function AdminDashboard() {
     <div>
       <div className="admin-header">
         <h1>Timesheet Dashboard</h1>
-        <p>Select a project to view timesheet summary by users and activities</p>
-
-        <div className="user-info-card">
-          <div className="user-info-text">
-            <p className="user-info-line">
-              <strong>Logged in as:</strong> {user.full_name} ({user.designation})
-            </p>
-            <p className="user-info-subline">
-              {user.email} • {user.company}
-            </p>
-          </div>
-          <div className="user-info-access">
-            Admin Access: {user.is_admin || user.is_staff ? "✅" : "❌"}
-          </div>
-        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Date Range and Project Selection */}
       <div className="filters-section">
         <h3>Select Project and Date Range</h3>
         

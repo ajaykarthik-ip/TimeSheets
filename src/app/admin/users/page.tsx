@@ -306,22 +306,6 @@ export default function AdminUsers() {
     <div>
       <div className="admin-header">
         <h1>User Management</h1>
-        <p>Add, edit, block/unblock, and manage user accounts</p>
-
-        {/* Show current admin user */}
-        {currentUser && (
-          <div className="current-user-box">
-            <div className="current-user-info">
-              <p className="current-user-name">
-                <strong>Managing as:</strong> {currentUser.full_name} ({currentUser.designation})
-              </p>
-              <p className="current-user-email">{currentUser.email}</p>
-            </div>
-            <div className="current-user-role">
-              {currentUser.is_admin ? 'Admin' : currentUser.is_staff ? 'Staff' : 'User'}: ✅
-            </div>
-          </div>
-        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}

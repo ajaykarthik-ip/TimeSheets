@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import './page.css';
 import UserSidebar from './components/UserSidebar';
 import WeekNavigation from './components/WeekNavigation';
@@ -34,6 +34,10 @@ export default function MainPage() {
   const [saving, setSaving] = useState(false);
   const [tableData, setTableData] = useState<{[key: string]: {[date: string]: string}}>({});
   const [projectActivities, setProjectActivities] = useState<Map<string, string[]>>(new Map());
+  const [manuallyAddedRows, setManuallyAddedRows] = useState<Set<string>>(new Set());
+  
+  // Refs to prevent infinite loops
+  const previousWeekKey = useRef<string>('');
 
   // Computed values
   const dateRange = useMemo(() => getWeekDateRange(currentDate), [currentDate]);
@@ -42,18 +46,8 @@ export default function MainPage() {
   const groupedProjectActivities = useMemo(() => {
     const groups: {[key: string]: {activityType: string, key: string}[]} = {};
     
-    const allEntries = [
-      ...timesheets,
-      ...Object.keys(tableData).map(key => {
-        const parts = key.split('-');
-        return {
-          project_name: parts[0],
-          activity_type: parts.slice(1).join('-')
-        };
-      })
-    ];
-
-    allEntries.forEach(entry => {
+    // Add timesheet entries
+    timesheets.forEach(entry => {
       if (!groups[entry.project_name]) {
         groups[entry.project_name] = [];
       }
@@ -68,9 +62,28 @@ export default function MainPage() {
         });
       }
     });
+
+    // Add manually added rows for the current week
+    manuallyAddedRows.forEach(key => {
+      const parts = key.split('-');
+      const projectName = parts[0];
+      const activityType = parts.slice(1).join('-');
+      
+      if (!groups[projectName]) {
+        groups[projectName] = [];
+      }
+      
+      const exists = groups[projectName].find(item => item.key === key);
+      if (!exists) {
+        groups[projectName].push({
+          activityType,
+          key
+        });
+      }
+    });
     
     return groups;
-  }, [timesheets, tableData]);
+  }, [timesheets, manuallyAddedRows]);
 
   // Data loading
   const loadData = useCallback(async () => {
@@ -129,10 +142,10 @@ export default function MainPage() {
     setProjectActivities(activitiesMap);
   }, [projects]);
 
-  const populateTable = useCallback(() => {
+  const initializeTableData = useCallback(() => {
     const data: {[key: string]: {[date: string]: string}} = {};
     
-    // Initialize all project-activity combinations
+    // Initialize rows from groupedProjectActivities
     Object.values(groupedProjectActivities)
       .flat()
       .forEach(({ key }) => {
@@ -145,30 +158,51 @@ export default function MainPage() {
     // Populate with existing timesheet data
     timesheets.forEach(timesheet => {
       const key = `${timesheet.project_name}-${timesheet.activity_type}`;
-      if (data[key]) {
-        data[key][timesheet.date] = timesheet.hours_worked;
+      if (!data[key]) {
+        data[key] = {};
+        weekDates.forEach(date => {
+          data[key][date] = '0';
+        });
       }
+      data[key][timesheet.date] = timesheet.hours_worked;
     });
     
     setTableData(data);
   }, [groupedProjectActivities, weekDates, timesheets]);
 
+  // Check if week has changed and reset state accordingly
+  const checkWeekChange = useCallback(() => {
+    const currentWeekKey = `${dateRange.dateFrom}-${dateRange.dateTo}`;
+    
+    if (previousWeekKey.current && previousWeekKey.current !== currentWeekKey) {
+      // Week has changed, reset manually added rows and table data
+      setManuallyAddedRows(new Set());
+      setTableData({});
+    }
+    
+    previousWeekKey.current = currentWeekKey;
+  }, [dateRange]);
+
   // Effects
   useEffect(() => {
+    checkWeekChange();
+  }, [checkWeekChange]);
+
+  useEffect(() => {
     loadData();
-  }, [dateRange]);
+  }, [loadData]);
 
   useEffect(() => {
     if (projects.length) {
       loadActivities();
     }
-  }, [projects]);
+  }, [projects, loadActivities]);
 
   useEffect(() => {
-    if (projectActivities.size || timesheets.length) {
-      populateTable();
+    if (timesheets.length >= 0 && weekDates.length > 0) {
+      initializeTableData();
     }
-  }, [timesheets, projectActivities.size]);
+  }, [timesheets, weekDates, manuallyAddedRows, initializeTableData]);
 
   // Event handlers
   const handleCellChange = async (
@@ -283,15 +317,8 @@ export default function MainPage() {
   const addNewRow = (projectName: string, activityType: string) => {
     const key = `${projectName}-${activityType}`;
     
-    const newRowData = weekDates.reduce((acc, date) => {
-      acc[date] = '0';
-      return acc;
-    }, {} as {[date: string]: string});
-
-    setTableData(prev => ({
-      ...prev,
-      [key]: newRowData
-    }));
+    // Add to manually added rows set
+    setManuallyAddedRows(prev => new Set([...prev, key]));
     
     showNotification(`Added ${projectName} - ${activityType} row`);
   };
@@ -303,6 +330,14 @@ export default function MainPage() {
       return;
     }
 
+    // Remove from manually added rows
+    setManuallyAddedRows(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(key);
+      return newSet;
+    });
+
+    // Remove from table data
     setTableData(prev => {
       const newData = { ...prev };
       delete newData[key];

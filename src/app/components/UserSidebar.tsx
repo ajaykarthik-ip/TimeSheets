@@ -69,12 +69,12 @@ export default function UserSidebar({ user: propUser, isAdmin }: UserSidebarProp
       <div className="sidebar-content">
         <div>
           <h2>Mobiux - Timesheet</h2>
-          <div className="user-info">
+          {/* <div className="user-info">
             <p><strong>Name:</strong> {userData.name}</p>
             <p><strong>ID:</strong> {userData.id}</p>
             <p><strong>Department:</strong> {userData.department}</p>
             <p><strong>Role:</strong> {userData.role}</p>
-          </div>
+          </div> */}
           
           {hasAdminAccess() && (
             <button 

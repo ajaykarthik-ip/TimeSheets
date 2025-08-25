@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
@@ -9,113 +9,23 @@ import '../auth.css';
 // Get API base URL from environment
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
-// Define Google API types (keeping for future use)
-interface GoogleCredentialResponse {
-  credential: string;
-}
-
-interface GoogleInitializeConfig {
-  client_id: string;
-  callback: (response: GoogleCredentialResponse) => void;
-  auto_select: boolean;
-}
-
-interface GoogleButtonConfig {
-  theme: string;
-  size: string;
-  width: string;
-  text: string;
-}
-
-interface GoogleAccounts {
-  id: {
-    initialize: (config: GoogleInitializeConfig) => void;
-    renderButton: (element: HTMLElement | null, config: GoogleButtonConfig) => void;
-  };
-}
-
-// Declare Google API types
-declare global {
-  interface Window {
-    google: {
-      accounts: GoogleAccounts;
-    };
-    googleLoginCallback: (response: GoogleCredentialResponse) => void;
-  }
-}
-
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   
-  // ✅ FIXED: Match backend expected fields
+  // ✅ FIXED: Removed designation field
   const [formData, setFormData] = useState({
     email: '',
     first_name: '',
     last_name: '',
-    designation: 'employee', // Default designation
     password: '',
     password_confirm: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Google OAuth handler (disabled for now, keeping for future)
-  const handleGoogleLogin = useCallback(async (response: GoogleCredentialResponse) => {
-    setGoogleLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      // TODO: Implement Google OAuth when backend supports it
-      setError('Google OAuth not implemented yet');
-    } catch (err) {
-      console.error('Google registration error:', err);
-      setError('Google registration is not available yet');
-    } finally {
-      setGoogleLoading(false);
-    }
-  }, []);
-
-  // Initialize Google OAuth (commented out for now)
-  useEffect(() => {
-    // TODO: Uncomment when Google OAuth is implemented in backend
-    /*
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: '10454239385-8adqedafr5vo5camkr5re7e9mc4qf3jc.apps.googleusercontent.com',
-          callback: handleGoogleLogin,
-          auto_select: false,
-        });
-
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-button'),
-          {
-            theme: 'outline',
-            size: 'large',
-            width: '100%',
-            text: 'signup_with',
-          }
-        );
-      }
-    };
-
-    return () => {
-      document.head.removeChild(script);
-    };
-    */
-  }, [handleGoogleLogin]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -145,19 +55,17 @@ export default function RegisterPage() {
     }
 
     try {
-      // ✅ FIXED: Prepare data to match backend expectations
+      // ✅ FIXED: Prepare data without designation
       const registrationData = {
         email: formData.email,
         first_name: formData.first_name,
         last_name: formData.last_name,
-        designation: formData.designation,
         password: formData.password
-        // Remove password_confirm as backend doesn't expect it
+        // Removed designation and password_confirm
       };
 
       console.log('📝 Register: Sending data:', { ...registrationData, password: '[HIDDEN]' });
 
-      // ✅ FIXED: Use correct backend endpoint
       const response = await fetch(`${API_BASE}/auth/register/`, {
         method: 'POST',
         headers: {
@@ -178,7 +86,6 @@ export default function RegisterPage() {
           email: '',
           first_name: '',
           last_name: '',
-          designation: 'employee',
           password: '',
           password_confirm: ''
         });
@@ -188,7 +95,6 @@ export default function RegisterPage() {
           router.push('/login');
         }, 2000);
       } else {
-        // ✅ FIXED: Handle backend error format
         console.log('❌ Registration failed:', data);
         
         if (data.error) {
@@ -213,8 +119,7 @@ export default function RegisterPage() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>Create Account</h1>
-          <p>Join our timesheet management system</p>
+          <div className="logo">Create Account</div>
         </div>
 
         {error && (
@@ -228,25 +133,6 @@ export default function RegisterPage() {
             {success}
           </div>
         )}
-
-        {/* Google Sign-In Button (disabled for now) */}
-        <div className="google-signin-section" style={{ display: 'none' }}>
-          <div 
-            id="google-signin-button"
-            style={{ marginBottom: '20px' }}
-          ></div>
-          {googleLoading && (
-            <div className="loading" style={{ marginBottom: '15px' }}>
-              <div className="spinner"></div>
-              Creating account with Google...
-            </div>
-          )}
-        </div>
-
-        {/* Divider (hidden when Google is disabled) */}
-        <div className="auth-divider" style={{ display: 'none' }}>
-          <span>or</span>
-        </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-row">
@@ -288,25 +174,6 @@ export default function RegisterPage() {
               required
               placeholder="Enter your email"
             />
-          </div>
-
-          {/* ✅ ADDED: Designation field to match backend */}
-          <div className="form-group">
-            <label htmlFor="designation">Designation</label>
-            <select
-              id="designation"
-              name="designation"
-              value={formData.designation}
-              onChange={handleChange}
-              required
-            >
-              <option value="employee">Employee</option>
-              <option value="senior_employee">Senior Employee</option>
-              <option value="team_lead">Team Lead</option>
-              <option value="manager">Manager</option>
-              <option value="senior_manager">Senior Manager</option>
-              <option value="director">Director</option>
-            </select>
           </div>
 
           <div className="form-group">

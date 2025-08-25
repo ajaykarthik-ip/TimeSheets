@@ -79,9 +79,9 @@ export default function AdminLayout({
   }, [router]);
 
   const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: '📊' },
-    { href: '/admin/users', label: 'Users', icon: '👥' },
-    { href: '/admin/projects', label: 'Projects', icon: '🏗️' },
+    { href: '/admin', label: 'Dashboard' },
+    { href: '/admin/users', label: 'Users' },
+    { href: '/admin/projects', label: 'Projects' },
   ];
 
   if (loading) {
@@ -112,8 +112,6 @@ export default function AdminLayout({
             <p><strong>Staff:</strong> {currentUser.is_staff ? 'Yes' : 'No'}</p>
           </div>
         )}
-        
-        <LogoutButton />
 
         <ul className="admin-nav">
           {navItems.map((item) => (
@@ -122,7 +120,7 @@ export default function AdminLayout({
                 href={item.href}
                 className={pathname === item.href ? 'active' : ''}
               >
-                {item.icon} {item.label}
+                {item.label}
               </Link>
             </li>
           ))}
@@ -132,10 +130,16 @@ export default function AdminLayout({
             </Link>
           </li>
         </ul>
+
+        {/* Add LogoutButton at the bottom of the sidebar */}
+        <div className="admin-logout-section">
+          <LogoutButton />
+        </div>
       </div>
       <div className="admin-content">
         {children}
       </div>
+      
     </div>
   );
 }
