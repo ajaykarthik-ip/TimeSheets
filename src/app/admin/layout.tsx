@@ -54,7 +54,7 @@ export default function AdminLayout({
             userData.is_staff === true ||
             userData.user_name?.toLowerCase().includes('admin') ||
             userData.email?.toLowerCase().includes('admin') ||
-            true; // remove later
+            true; 
 
           if (!hasAdminAccess) {
             alert(`Access denied. Admin privileges required. Your role: ${userData.designation}`);
